@@ -322,6 +322,7 @@ async function showView(view){
         <h3>Trabajos realizados por el técnico</h3>
         <textarea id="report-technician-work" rows="4" placeholder="Describe las comprobaciones y trabajos realizados" style="width:100%;resize:vertical"></textarea>
         <h3>Fotos y vídeos</h3>
+        <button id="authorize-drive" type="button" class="btn secondary">Autorizar Google Drive</button>
         <input id="report-attachments" type="file" accept="image/*,video/*" multiple>
         <div id="report-attachments-list" class="attachments-list small"></div>
       </div>
@@ -361,7 +362,7 @@ async function showView(view){
       if(event.target.id === 'report-form') resetNewPartForm();
     });
     const reportAttachments = document.getElementById('report-attachments');
-    reportAttachments.addEventListener('pointerdown', prepareDriveAccess);
+    document.getElementById('authorize-drive').addEventListener('click', event=>prepareDriveAccess(event.currentTarget));
     reportAttachments.addEventListener('change', renderPendingAttachments);
     document.getElementById('report-status').addEventListener('change', ()=>{
       setPartFormLocked(window._editingPartId ? isFinalizedPartStatus(document.getElementById('report-status').value) : false);
@@ -1663,10 +1664,14 @@ async function renderPendingAttachments(event){
   renderAttachmentList(window._pendingPartAttachments, document.getElementById('report-attachments-list'), true);
 }
 
-function prepareDriveAccess(){
-  GenalDrive.prepareAccess().catch(error=>{
+function prepareDriveAccess(button){
+  if(button) button.disabled = true;
+  return GenalDrive.prepareAccess().then(()=>{
+    if(button) button.textContent = 'Google Drive autorizado';
+  }).catch(error=>{
     console.error('No se pudo autorizar Google Drive.', error);
     showToast(`No se pudo autorizar Google Drive: ${error.message || 'error de autenticación'}`, 'error');
+    if(button) button.disabled = false;
   });
 }
 
@@ -2313,6 +2318,7 @@ async function renderPartsList(){
           <table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th></tr></thead><tbody>${pieceHtml.join('').replace(/<li>(.*?) x (.*?)<\/li>/g, '<tr><td>$1</td><td>$2</td></tr>') || '<tr><td colspan="2" class="small">Ninguna</td></tr>'}</tbody></table>
           <p><strong>Fotos y vídeos:</strong></p>
           <div class="part-attachments"></div>
+          <button class="btn secondary authorize-drive" type="button">Autorizar Google Drive</button>
           <label class="attachment-add-label">Añadir fotos o vídeos
             <input class="part-attachment-input" type="file" accept="image/*,video/*" multiple>
           </label>
@@ -2342,7 +2348,7 @@ async function renderPartsList(){
       attachmentInput.title = partIsFinalized
         ? 'Los partes finalizados no se pueden modificar'
         : 'Añadir fotos o vídeos';
-      attachmentInput.addEventListener('pointerdown', prepareDriveAccess);
+      div.querySelector('.authorize-drive').addEventListener('click', event=>prepareDriveAccess(event.currentTarget));
       attachmentInput.addEventListener('change', event=>addAttachmentsToPart(p, event));
       const summary = div.querySelector('.part-summary');
       summary.addEventListener('click', ()=>openPartDetailsModal(p.id));
