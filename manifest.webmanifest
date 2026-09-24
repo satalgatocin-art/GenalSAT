@@ -1,0 +1,19 @@
+{
+  "name": "GenalSAT - Gestión de reparaciones",
+  "short_name": "GenalSAT",
+  "description": "Gestión de clientes, inventario, informes, presupuestos, facturas y agenda.",
+  "lang": "es",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6f9",
+  "theme_color": "#12365f",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

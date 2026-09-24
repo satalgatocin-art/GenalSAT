@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GenalSAT - Reparaciones</title>
+  <meta name="theme-color" content="#12365f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="header-brand">
+      <h1><span class="app-name">GenalSAT</span><span class="app-tagline"> - Gestión de reparaciones</span></h1>
+      <img id="company-header-logo" class="company-header-logo" alt="Logo de la empresa" hidden>
+    </div>
+    <nav aria-label="Navegación principal">
+      <button data-view="stock" class="nav-btn"><span class="nav-icon">📦</span><span>Inventario</span></button>
+      <button data-view="clients" class="nav-btn"><span class="nav-icon">👥</span><span>Clientes</span></button>
+      <button data-view="parts" class="nav-btn"><span class="nav-icon">🧾</span><span>Informes</span></button>
+      <button data-view="budgets" class="nav-btn"><span class="nav-icon">💶</span><span>Presupuestos</span></button>
+      <button data-view="invoices" class="nav-btn"><span class="nav-icon">🧮</span><span>Facturas</span></button>
+      <button data-view="agenda" class="nav-btn" aria-label="Agenda" title="Agenda"><span class="nav-icon">📅</span><span>Agenda</span></button>
+      <button data-view="settings" class="nav-btn"><span class="nav-icon">⚙</span><span>Ajustes</span></button>
+    </nav>
+  </header>
+
+  <main id="app">
+    <!-- Views rendered here -->
+  </main>
+
+  <footer>
+    <small>Versión MVP - Datos guardados en Firebase Firestore. Exportar/Importar en Ajustes.</small>
+  </footer>
+
+  <script type="module" src="db.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
