@@ -17,6 +17,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   const firestore = getFirestore(firebaseApp);
   const googleProvider = new GoogleAuthProvider();
   googleProvider.addScope('https://www.googleapis.com/auth/drive');
+  googleProvider.setCustomParameters({prompt:'consent'});
   let currentUser = null;
   let legacyMigrationChecked = false;
   let driveTokenPromise = null;
@@ -201,7 +202,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     if(driveTokenPromise) return driveTokenPromise;
     if(!currentUser) throw new Error('Se requiere una sesión de Google antes de autorizar Google Drive.');
     driveTokenPromise = reauthenticateWithPopup(currentUser, googleProvider).then(result=>{
-      const credential = result?.credential;
+      const credential = GoogleAuthProvider.credentialFromResult(result);
       if(!credential?.accessToken) throw new Error('Google no devolvió un token para Google Drive.');
       driveAccessToken = credential.accessToken;
       driveTokenExpiresAt = Date.now() + 3600000;
