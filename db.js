@@ -20,6 +20,9 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   let legacyMigrationChecked = false;
   let driveTokenClient = null;
   let driveTokenPromise = null;
+  let driveAccessToken = '';
+  let driveTokenExpiresAt = 0;
+  let driveFolderId = null;
   let authReadyResolve;
   const authReady = new Promise(resolve=>{ authReadyResolve = resolve; });
 
@@ -201,18 +204,23 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   }
 
   async function getDriveToken(){
+    if(driveAccessToken && Date.now() < driveTokenExpiresAt - 60000) return driveAccessToken;
     if(driveTokenPromise) return driveTokenPromise;
     driveTokenPromise = waitForGoogleIdentity().then(()=>new Promise((resolve,reject)=>{
       driveTokenClient = window.google.accounts.oauth2.initTokenClient({
         client_id:'741995913327-qo7tno84sk6pmnudv8mvtsgoo56e59ms.apps.googleusercontent.com',
-        scope:'https://www.googleapis.com/auth/drive.file',
+        scope:'https://www.googleapis.com/auth/drive',
         callback:response=>{
           if(response.error) reject(new Error(response.error_description || response.error));
-          else resolve(response.access_token);
+          else{
+            driveAccessToken = response.access_token;
+            driveTokenExpiresAt = Date.now() + Number(response.expires_in || 3600) * 1000;
+            resolve(driveAccessToken);
+          }
           driveTokenPromise = null;
         }
       });
-      driveTokenClient.requestAccessToken({prompt:'consent'});
+      driveTokenClient.requestAccessToken({prompt:driveAccessToken ? '' : 'consent'});
     }).catch(error=>{
       driveTokenPromise = null;
       throw error;
@@ -220,9 +228,33 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     return driveTokenPromise;
   }
 
+  async function getDriveFolderId(){
+    if(driveFolderId) return driveFolderId;
+    const token = await getDriveToken();
+    const query = encodeURIComponent("name = 'WEB' and mimeType = 'application/vnd.google-apps.folder' and trashed = false");
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&spaces=drive&fields=files(id,name)&pageSize=10`, {
+      headers:{Authorization:`Bearer ${token}`}
+    });
+    if(!response.ok) throw new Error(`No se pudo localizar la carpeta WEB (${response.status}).`);
+    const result = await response.json();
+    if(result.files?.length){
+      driveFolderId = result.files[0].id;
+      return driveFolderId;
+    }
+    const createResponse = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+      method:'POST',
+      headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({name:'WEB',mimeType:'application/vnd.google-apps.folder'})
+    });
+    if(!createResponse.ok) throw new Error(`No se pudo crear la carpeta WEB (${createResponse.status}).`);
+    const folder = await createResponse.json();
+    driveFolderId = folder.id;
+    return driveFolderId;
+  }
+
   async function uploadToDrive(file){
     const token = await getDriveToken();
-    const metadata = {name:file.name, mimeType:file.type || 'application/octet-stream'};
+    const metadata = {name:file.name, mimeType:file.type || 'application/octet-stream', parents:[await getDriveFolderId()]};
     const boundary = `genalsat_${Date.now()}`;
     const body = new Blob([
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
@@ -270,6 +302,15 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     }
   }
 
+  async function downloadFromDrive(fileId){
+    const token = await getDriveToken();
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, {
+      headers:{Authorization:`Bearer ${token}`}
+    });
+    if(!response.ok) throw new Error(`No se pudo leer el archivo de Google Drive (${response.status}).`);
+    return response.blob();
+  }
+
   window.GenalDB = {openDB,getAll,get,add,put,remove,seedIfEmpty};
-  window.GenalDrive = {upload:uploadToDrive, remove:deleteFromDrive};
+  window.GenalDrive = {upload:uploadToDrive, remove:deleteFromDrive, download:downloadFromDrive};
 })(window);

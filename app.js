@@ -1670,6 +1670,37 @@ function readFileAsDataUrl(file){
   });
 }
 
+async function resolveAttachmentUrl(attachment){
+  if(attachment.dataUrl) return attachment.dataUrl;
+  if(attachment._previewUrl) return attachment._previewUrl;
+  if(!attachment.driveFileId) return attachment.driveUrl || '';
+  try{
+    const blob = await GenalDrive.download(attachment.driveFileId);
+    attachment._previewUrl = URL.createObjectURL(blob);
+    return attachment._previewUrl;
+  }catch(error){
+    console.error('No se pudo cargar el archivo desde Google Drive.', error);
+    return '';
+  }
+}
+
+async function downloadAttachment(attachment){
+  if(!attachment.driveFileId){
+    const link = document.createElement('a');
+    link.href = attachment.dataUrl || attachment.driveUrl || '';
+    link.download = attachment.name || 'archivo-adjunto';
+    link.click();
+    return;
+  }
+  const blob = await GenalDrive.download(attachment.driveFileId);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = attachment.name || 'archivo-adjunto';
+  link.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
 function openAttachmentViewer(attachments, initialIndex){
   if(!attachments?.length) return;
   let modal = document.getElementById('attachment-viewer');
@@ -1699,7 +1730,7 @@ function openAttachmentViewer(attachments, initialIndex){
   modal.classList.add('show');
 }
 
-function renderAttachmentViewer(){
+async function renderAttachmentViewer(){
   const modal = document.getElementById('attachment-viewer');
   if(!modal) return;
   const attachments = modal._attachments || [];
@@ -1711,7 +1742,9 @@ function renderAttachmentViewer(){
   const media = attachment.type?.startsWith('video/')
     ? document.createElement('video')
     : document.createElement('img');
-  media.src = attachment.dataUrl || attachment.driveUrl;
+  const mediaUrl = await resolveAttachmentUrl(attachment);
+  if(!mediaUrl) return;
+  media.src = mediaUrl;
   media.alt = attachment.name || 'Archivo adjunto';
   if(media.tagName === 'VIDEO'){
     media.controls = true;
@@ -1760,7 +1793,9 @@ function renderAttachmentList(attachments, container, editable=false, onRemove=n
     const preview = attachment.type.startsWith('video/')
       ? document.createElement('video')
       : document.createElement('img');
-    preview.src = attachment.dataUrl || attachment.driveUrl;
+    resolveAttachmentUrl(attachment).then(url=>{
+      if(url) preview.src = url;
+    });
     preview.className = 'attachment-preview';
     if(preview.tagName === 'VIDEO'){
       preview.controls = true;
@@ -1787,12 +1822,19 @@ function renderAttachmentList(attachments, container, editable=false, onRemove=n
     item.appendChild(viewButton);
     const download = document.createElement('a');
     download.className = 'attachment-download';
-    download.href = attachment.dataUrl || attachment.driveUrl;
-    download.download = attachment.name || 'archivo-adjunto';
     download.textContent = 'Descargar';
     download.title = `Descargar ${attachment.name || 'archivo adjunto'}`;
     download.setAttribute('aria-label', `Descargar ${attachment.name || 'archivo adjunto'}`);
-    download.addEventListener('click', event=>event.stopPropagation());
+    download.addEventListener('click', async event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      try{
+        await downloadAttachment(attachment);
+      }catch(error){
+        console.error('No se pudo descargar el archivo de Google Drive.', error);
+        showToast('No se pudo descargar el archivo.', 'error');
+      }
+    });
     item.appendChild(download);
     if(editable || onRemove){
       const remove = document.createElement('button');
@@ -2155,7 +2197,7 @@ async function renderPartsList(){
     modal.classList.add('show');
   }
 
-  function renderAttachmentViewer(){
+  async function renderAttachmentViewer(){
     const modal = document.getElementById('attachment-viewer');
     if(!modal) return;
     const attachments = modal._attachments || [];
@@ -2167,7 +2209,9 @@ async function renderPartsList(){
     const media = attachment.type?.startsWith('video/')
       ? document.createElement('video')
       : document.createElement('img');
-    media.src = attachment.dataUrl || attachment.driveUrl;
+    const mediaUrl = await resolveAttachmentUrl(attachment);
+    if(!mediaUrl) return;
+    media.src = mediaUrl;
     media.alt = attachment.name || 'Archivo adjunto';
     if(media.tagName === 'VIDEO'){
       media.controls = true;

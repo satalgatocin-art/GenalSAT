@@ -15,12 +15,13 @@ Configuración de Firebase
 
 Configuración de Google Drive
 -----------------------------
-Los fotos y vídeos adjuntos se suben a Google Drive mediante el permiso limitado `drive.file`; Firestore guarda únicamente el identificador, nombre, tipo y enlace del archivo.
+Las fotos y vídeos adjuntos se suben a Google Drive dentro de la carpeta `WEB`; Firestore guarda únicamente el identificador, nombre, tipo y enlace del archivo. La aplicación conserva el token de Drive en memoria durante la sesión para no volver a pedir la cuenta en cada subida o eliminación.
 1. En Google Cloud Console, selecciona el proyecto `genalsat-13` y activa **Google Drive API** en **APIs y servicios > Biblioteca**.
 2. En **APIs y servicios > Pantalla de consentimiento de OAuth**, configura la aplicación y añade tu cuenta como usuario de prueba si la aplicación está en modo de pruebas.
 3. En **APIs y servicios > Credenciales**, abre el cliente OAuth web cuyo ID termina en `apps.googleusercontent.com`.
 4. Añade como **Orígenes de JavaScript autorizados** el origen de GitHub Pages, por ejemplo `https://TU_USUARIO.github.io`, sin la ruta del repositorio.
-5. Vuelve a cargar la aplicación, inicia sesión con Google y concede el permiso de Drive la primera vez que adjuntes un archivo.
+5. La aplicación solicita el alcance `https://www.googleapis.com/auth/drive` porque necesita localizar y usar la carpeta `WEB` que ya existe en Drive. Vuelve a cargar la aplicación, inicia sesión con Google y concede este permiso una sola vez.
+6. Si no encuentra una carpeta llamada `WEB`, crea una automáticamente y la usa para las siguientes subidas.
 
 La aplicación usa las colecciones `users/{uid}/products`, `clients`, `parts`, `budgets`, `invoices`, `settings`, `moves` y `appointments`. Cada usuario solo puede leer y modificar sus propias colecciones según las reglas incluidas.
 
