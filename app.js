@@ -322,7 +322,6 @@ async function showView(view){
         <h3>Trabajos realizados por el técnico</h3>
         <textarea id="report-technician-work" rows="4" placeholder="Describe las comprobaciones y trabajos realizados" style="width:100%;resize:vertical"></textarea>
         <h3>Fotos y vídeos</h3>
-        <button id="authorize-drive" type="button" class="btn secondary">Autorizar Google Drive</button>
         <input id="report-attachments" type="file" accept="image/*,video/*" multiple>
         <div id="report-attachments-list" class="attachments-list small"></div>
       </div>
@@ -362,7 +361,7 @@ async function showView(view){
       if(event.target.id === 'report-form') resetNewPartForm();
     });
     const reportAttachments = document.getElementById('report-attachments');
-    document.getElementById('authorize-drive').addEventListener('click', event=>prepareDriveAccess(event.currentTarget));
+    reportAttachments.addEventListener('pointerdown', prepareDriveAccess);
     reportAttachments.addEventListener('change', renderPendingAttachments);
     document.getElementById('report-status').addEventListener('change', ()=>{
       setPartFormLocked(window._editingPartId ? isFinalizedPartStatus(document.getElementById('report-status').value) : false);
@@ -1664,14 +1663,10 @@ async function renderPendingAttachments(event){
   renderAttachmentList(window._pendingPartAttachments, document.getElementById('report-attachments-list'), true);
 }
 
-function prepareDriveAccess(button){
-  if(button) button.disabled = true;
-  return GenalDrive.prepareAccess().then(()=>{
-    if(button) button.textContent = 'Google Drive autorizado';
-  }).catch(error=>{
+function prepareDriveAccess(){
+  GenalDrive.prepareAccess().catch(error=>{
     console.error('No se pudo autorizar Google Drive.', error);
     showToast(`No se pudo autorizar Google Drive: ${error.message || 'error de autenticación'}`, 'error');
-    if(button) button.disabled = false;
   });
 }
 
@@ -2318,7 +2313,6 @@ async function renderPartsList(){
           <table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th></tr></thead><tbody>${pieceHtml.join('').replace(/<li>(.*?) x (.*?)<\/li>/g, '<tr><td>$1</td><td>$2</td></tr>') || '<tr><td colspan="2" class="small">Ninguna</td></tr>'}</tbody></table>
           <p><strong>Fotos y vídeos:</strong></p>
           <div class="part-attachments"></div>
-          <button class="btn secondary authorize-drive" type="button">Autorizar Google Drive</button>
           <label class="attachment-add-label">Añadir fotos o vídeos
             <input class="part-attachment-input" type="file" accept="image/*,video/*" multiple>
           </label>
@@ -2348,7 +2342,7 @@ async function renderPartsList(){
       attachmentInput.title = partIsFinalized
         ? 'Los partes finalizados no se pueden modificar'
         : 'Añadir fotos o vídeos';
-      div.querySelector('.authorize-drive').addEventListener('click', event=>prepareDriveAccess(event.currentTarget));
+      attachmentInput.addEventListener('pointerdown', prepareDriveAccess);
       attachmentInput.addEventListener('change', event=>addAttachmentsToPart(p, event));
       const summary = div.querySelector('.part-summary');
       summary.addEventListener('click', ()=>openPartDetailsModal(p.id));
@@ -2465,6 +2459,12 @@ async function openPartDetailsModal(partId){
       </div>
       <section class="part-detail-section"><h4>Citas</h4><ul class="part-detail-list">${appointmentHtml}</ul></section>
       <section class="part-detail-section"><h4>Piezas utilizadas</h4><table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th><th>Descontar stock</th></tr></thead><tbody>${pieceRows || '<tr><td colspan="3" class="small">Ninguna</td></tr>'}</tbody></table></section>
+      <section class="part-detail-section"><h4>Fotos y vídeos</h4>
+        <div class="part-modal-attachments"></div>
+        ${isFinalizedPartStatus(part.status) ? '<p class="small">Los informes finalizados no se pueden modificar.</p>' : `<label class="attachment-add-label">Añadir fotos o vídeos
+          <input class="part-modal-attachment-input" type="file" accept="image/*,video/*" multiple>
+        </label>`}
+      </section>
       <div class="part-related-links"><div class="part-detail-section"><h4>Presupuestos vinculados</h4><ul class="part-detail-list">${budgetHtml}</ul></div><div class="part-detail-section"><h4>Facturas vinculadas</h4><ul class="part-detail-list">${invoiceHtml}</ul></div></div>
       <div class="part-details-actions" aria-label="Acciones del informe">
         <button type="button" class="btn" data-part-detail-action="preview"><span class="preview-action-icon" aria-hidden="true">👁</span><span>Vista previa</span></button>
@@ -2478,6 +2478,36 @@ async function openPartDetailsModal(partId){
   </div>`;
   document.body.appendChild(modal);
   const close = ()=>modal.remove();
+  const attachmentContainer = modal.querySelector('.part-modal-attachments');
+  const removeAttachment = async index=>{
+    const currentPart = await GenalDB.get('parts', part.id);
+    if(!currentPart) return;
+    if(!confirm(`¿Eliminar el archivo "${currentPart.attachments?.[index]?.name || 'adjunto'}"?`)) return;
+    const removedAttachment = currentPart.attachments?.[index];
+    if(removedAttachment?.driveFileId){
+      try{
+        await GenalDrive.remove(removedAttachment.driveFileId);
+      }catch(error){
+        console.error('No se pudo eliminar el archivo de Google Drive.', error);
+        showToast('No se pudo eliminar el archivo de Google Drive.', 'error');
+        return;
+      }
+    }
+    currentPart.attachments = (currentPart.attachments || []).filter((_, attachmentIndex)=>attachmentIndex !== index);
+    await GenalDB.put('parts', currentPart);
+    part.attachments = currentPart.attachments;
+    renderAttachmentList(part.attachments, attachmentContainer, false, removeAttachment);
+    renderPartsList();
+  };
+  renderAttachmentList(part.attachments || [], attachmentContainer, false, removeAttachment);
+  const attachmentInput = modal.querySelector('.part-modal-attachment-input');
+  if(attachmentInput){
+    attachmentInput.addEventListener('pointerdown', prepareDriveAccess);
+    attachmentInput.addEventListener('change', async event=>{
+      await addAttachmentsToPart(part, event);
+      renderAttachmentList(part.attachments || [], attachmentContainer, false, removeAttachment);
+    });
+  }
   modal.querySelector('.close-btn').addEventListener('click', close);
   modal.addEventListener('click', event=>{ if(event.target === modal) close(); });
   modal.querySelector('[data-part-detail-action="preview"]').addEventListener('click', async ()=>{
