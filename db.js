@@ -209,7 +209,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     }).catch(error=>{
       driveTokenPromise = null;
       throw error;
-    }));
+    });
     return driveTokenPromise;
   }
 
