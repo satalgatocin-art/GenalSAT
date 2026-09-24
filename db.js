@@ -20,8 +20,6 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   let legacyMigrationChecked = false;
   let driveTokenClient = null;
   let driveTokenPromise = null;
-  let driveAccessToken = null;
-  let driveFolderId = null;
   let authReadyResolve;
   const authReady = new Promise(resolve=>{ authReadyResolve = resolve; });
 
@@ -210,14 +208,11 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
         scope:'https://www.googleapis.com/auth/drive.file',
         callback:response=>{
           if(response.error) reject(new Error(response.error_description || response.error));
-          else {
-            driveAccessToken = response.access_token;
-            resolve(driveAccessToken);
-          }
+          else resolve(response.access_token);
           driveTokenPromise = null;
         }
       });
-      driveTokenClient.requestAccessToken({prompt:'consent'});
+      driveTokenClient.requestAccessToken({prompt:''});
     }).catch(error=>{
       driveTokenPromise = null;
       throw error;
@@ -225,33 +220,9 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     return driveTokenPromise;
   }
 
-  async function getDriveFolderId(token){
-    if(driveFolderId) return driveFolderId;
-    const query = encodeURIComponent("name = 'GenalSAT' and mimeType = 'application/vnd.google-apps.folder' and trashed = false");
-    const existingResponse = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&spaces=drive&fields=files(id,name)`, {
-      headers:{Authorization:`Bearer ${token}`}
-    });
-    if(!existingResponse.ok) throw new Error(`No se pudo consultar Google Drive (${existingResponse.status}).`);
-    const existing = await existingResponse.json();
-    if(existing.files?.length){
-      driveFolderId = existing.files[0].id;
-      return driveFolderId;
-    }
-    const folderResponse = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
-      method:'POST',
-      headers:{Authorization:`Bearer ${token}`, 'Content-Type':'application/json'},
-      body:JSON.stringify({name:'GenalSAT', mimeType:'application/vnd.google-apps.folder'})
-    });
-    if(!folderResponse.ok) throw new Error(`No se pudo crear la carpeta GenalSAT (${folderResponse.status}).`);
-    const folder = await folderResponse.json();
-    driveFolderId = folder.id;
-    return driveFolderId;
-  }
-
   async function uploadToDrive(file){
     const token = await getDriveToken();
-    const folderId = await getDriveFolderId(token);
-    const metadata = {name:file.name, mimeType:file.type || 'application/octet-stream', parents:[folderId]};
+    const metadata = {name:file.name, mimeType:file.type || 'application/octet-stream'};
     const boundary = `genalsat_${Date.now()}`;
     const body = new Blob([
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
@@ -265,15 +236,11 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
       headers:{Authorization:`Bearer ${token}`, 'Content-Type':`multipart/related; boundary=${boundary}`},
       body
     });
-    if(!response.ok){
-      const details = await response.text();
-      throw new Error(`Google Drive rechazó la subida (${response.status}): ${details}`);
-    }
+    if(!response.ok) throw new Error(`Google Drive rechazó la subida (${response.status}).`);
     const uploaded = await response.json();
     return {
       driveFileId:uploaded.id,
       driveUrl:`https://drive.google.com/uc?export=download&id=${encodeURIComponent(uploaded.id)}`,
-      driveViewUrl:uploaded.webViewLink || `https://drive.google.com/drive/u/0/folders/${encodeURIComponent(folderId)}`,
       name:uploaded.name,
       type:uploaded.mimeType
     };

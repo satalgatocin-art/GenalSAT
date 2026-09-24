@@ -1794,17 +1794,6 @@ function renderAttachmentList(attachments, container, editable=false, onRemove=n
     download.setAttribute('aria-label', `Descargar ${attachment.name || 'archivo adjunto'}`);
     download.addEventListener('click', event=>event.stopPropagation());
     item.appendChild(download);
-    if(attachment.driveViewUrl){
-      const driveLink = document.createElement('a');
-      driveLink.className = 'attachment-download attachment-drive-link';
-      driveLink.href = attachment.driveViewUrl;
-      driveLink.target = '_blank';
-      driveLink.rel = 'noopener';
-      driveLink.textContent = 'Abrir Drive';
-      driveLink.title = `Abrir ${attachment.name || 'archivo'} en Google Drive`;
-      driveLink.addEventListener('click', event=>event.stopPropagation());
-      item.appendChild(driveLink);
-    }
     if(editable || onRemove){
       const remove = document.createElement('button');
       remove.type = 'button';

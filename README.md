@@ -13,6 +13,15 @@ Configuración de Firebase
 4. Sirve la aplicación mediante HTTP/HTTPS. Firebase Authentication y el service worker no funcionan correctamente abriendo `index.html` directamente con `file://`.
 5. La configuración pública del proyecto está incluida en [db.js](./db.js). La API key web de Firebase no es un secreto; la protección real la proporcionan Authentication y las reglas de Firestore.
 
+Configuración de Google Drive
+-----------------------------
+Los fotos y vídeos adjuntos se suben a Google Drive mediante el permiso limitado `drive.file`; Firestore guarda únicamente el identificador, nombre, tipo y enlace del archivo.
+1. En Google Cloud Console, selecciona el proyecto `genalsat-13` y activa **Google Drive API** en **APIs y servicios > Biblioteca**.
+2. En **APIs y servicios > Pantalla de consentimiento de OAuth**, configura la aplicación y añade tu cuenta como usuario de prueba si la aplicación está en modo de pruebas.
+3. En **APIs y servicios > Credenciales**, abre el cliente OAuth web cuyo ID termina en `apps.googleusercontent.com`.
+4. Añade como **Orígenes de JavaScript autorizados** el origen de GitHub Pages, por ejemplo `https://TU_USUARIO.github.io`, sin la ruta del repositorio.
+5. Vuelve a cargar la aplicación, inicia sesión con Google y concede el permiso de Drive la primera vez que adjuntes un archivo.
+
 La aplicación usa las colecciones `users/{uid}/products`, `clients`, `parts`, `budgets`, `invoices`, `settings`, `moves` y `appointments`. Cada usuario solo puede leer y modificar sus propias colecciones según las reglas incluidas.
 
 Funcionalidades incluidas en esta entrega (MVP):
