@@ -212,7 +212,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
           driveTokenPromise = null;
         }
       });
-      driveTokenClient.requestAccessToken({prompt:''});
+      driveTokenClient.requestAccessToken({prompt:'consent'});
     }).catch(error=>{
       driveTokenPromise = null;
       throw error;
@@ -236,7 +236,14 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
       headers:{Authorization:`Bearer ${token}`, 'Content-Type':`multipart/related; boundary=${boundary}`},
       body
     });
-    if(!response.ok) throw new Error(`Google Drive rechazó la subida (${response.status}).`);
+    if(!response.ok){
+      let details = '';
+      try{
+        const errorBody = await response.json();
+        details = errorBody.error?.message || errorBody.error_description || '';
+      }catch(_error){}
+      throw new Error(`Google Drive rechazó la subida (${response.status})${details ? `: ${details}` : '.'}`);
+    }
     const uploaded = await response.json();
     return {
       driveFileId:uploaded.id,
@@ -253,7 +260,14 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
       method:'DELETE',
       headers:{Authorization:`Bearer ${token}`}
     });
-    if(!response.ok && response.status !== 404) throw new Error(`Google Drive rechazó el borrado (${response.status}).`);
+    if(!response.ok && response.status !== 404){
+      let details = '';
+      try{
+        const errorBody = await response.json();
+        details = errorBody.error?.message || '';
+      }catch(_error){}
+      throw new Error(`Google Drive rechazó el borrado (${response.status})${details ? `: ${details}` : '.'}`);
+    }
   }
 
   window.GenalDB = {openDB,getAll,get,add,put,remove,seedIfEmpty};

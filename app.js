@@ -1654,7 +1654,7 @@ async function renderPendingAttachments(event){
       window._pendingPartAttachments.push(await GenalDrive.upload(file));
     }catch(error){
       console.error('No se pudo subir el adjunto a Google Drive.', error);
-      showToast(`No se pudo subir ${file.name} a Google Drive.`, 'error');
+      showToast(`No se pudo subir ${file.name}: ${error.message || 'error de Google Drive'}`, 'error');
     }
   }
   event.target.value = '';
@@ -2473,7 +2473,7 @@ async function addAttachmentsToPart(part, event){
       attachments.push(await GenalDrive.upload(file));
     }catch(error){
       console.error('No se pudo subir el adjunto a Google Drive.', error);
-      showToast(`No se pudo subir ${file.name} a Google Drive.`, 'error');
+      showToast(`No se pudo subir ${file.name}: ${error.message || 'error de Google Drive'}`, 'error');
     }
   }
   part.attachments = attachments;
