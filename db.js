@@ -16,9 +16,9 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   const auth = getAuth(firebaseApp);
   const firestore = getFirestore(firebaseApp);
   const googleProvider = new GoogleAuthProvider();
+  googleProvider.addScope('https://www.googleapis.com/auth/drive');
   let currentUser = null;
   let legacyMigrationChecked = false;
-  let driveTokenClient = null;
   let driveTokenPromise = null;
   let driveAccessToken = '';
   let driveTokenExpiresAt = 0;
@@ -45,7 +45,12 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
       button.textContent = 'Conectando...';
       error.hidden = true;
       try{
-        await signInWithPopup(auth, googleProvider);
+        const credentialResult = await signInWithPopup(auth, googleProvider);
+        const googleCredential = credentialResult?.credential;
+        if(googleCredential?.accessToken){
+          driveAccessToken = googleCredential.accessToken;
+          driveTokenExpiresAt = Date.now() + 3600000;
+        }
       }catch(signInError){
         console.error('No se pudo iniciar sesión con Google.', signInError);
         error.textContent = 'No se pudo iniciar sesión. Revisa la configuración de Authentication en Firebase.';
@@ -191,36 +196,16 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     }
   }
 
-  function waitForGoogleIdentity(){
-    return new Promise((resolve,reject)=>{
-      const started = Date.now();
-      const check = ()=>{
-        if(window.google?.accounts?.oauth2) return resolve();
-        if(Date.now() - started > 10000) return reject(new Error('No se pudo cargar el acceso de Google Drive.'));
-        setTimeout(check,100);
-      };
-      check();
-    });
-  }
-
   async function getDriveToken(){
     if(driveAccessToken && Date.now() < driveTokenExpiresAt - 60000) return driveAccessToken;
     if(driveTokenPromise) return driveTokenPromise;
-    driveTokenPromise = waitForGoogleIdentity().then(()=>new Promise((resolve,reject)=>{
-      driveTokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id:'741995913327-qo7tno84sk6pmnudv8mvtsgoo56e59ms.apps.googleusercontent.com',
-        scope:'https://www.googleapis.com/auth/drive',
-        callback:response=>{
-          if(response.error) reject(new Error(response.error_description || response.error));
-          else{
-            driveAccessToken = response.access_token;
-            driveTokenExpiresAt = Date.now() + Number(response.expires_in || 3600) * 1000;
-            resolve(driveAccessToken);
-          }
-          driveTokenPromise = null;
-        }
-      });
-      driveTokenClient.requestAccessToken({prompt:driveAccessToken ? '' : 'consent'});
+    driveTokenPromise = signInWithPopup(auth, googleProvider).then(result=>{
+      const credential = result?.credential;
+      if(!credential?.accessToken) throw new Error('Google no devolvió un token para Google Drive.');
+      driveAccessToken = credential.accessToken;
+      driveTokenExpiresAt = Date.now() + 3600000;
+      driveTokenPromise = null;
+      return driveAccessToken;
     }).catch(error=>{
       driveTokenPromise = null;
       throw error;
