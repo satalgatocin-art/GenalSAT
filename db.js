@@ -1,6 +1,6 @@
 /* db.js - Firebase Authentication + Firestore persistence */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, reauthenticateWithPopup, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 (function(window){
@@ -199,7 +199,8 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   async function getDriveToken(){
     if(driveAccessToken && Date.now() < driveTokenExpiresAt - 60000) return driveAccessToken;
     if(driveTokenPromise) return driveTokenPromise;
-    driveTokenPromise = signInWithPopup(auth, googleProvider).then(result=>{
+    if(!currentUser) throw new Error('Se requiere una sesión de Google antes de autorizar Google Drive.');
+    driveTokenPromise = reauthenticateWithPopup(currentUser, googleProvider).then(result=>{
       const credential = result?.credential;
       if(!credential?.accessToken) throw new Error('Google no devolvió un token para Google Drive.');
       driveAccessToken = credential.accessToken;
