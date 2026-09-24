@@ -18,6 +18,10 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   const googleProvider = new GoogleAuthProvider();
   let currentUser = null;
   let legacyMigrationChecked = false;
+  let driveTokenClient = null;
+  let driveTokenPromise = null;
+  let driveAccessToken = null;
+  let driveFolderId = null;
   let authReadyResolve;
   const authReady = new Promise(resolve=>{ authReadyResolve = resolve; });
 
@@ -186,5 +190,105 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     }
   }
 
+  function waitForGoogleIdentity(){
+    return new Promise((resolve,reject)=>{
+      const started = Date.now();
+      const check = ()=>{
+        if(window.google?.accounts?.oauth2) return resolve();
+        if(Date.now() - started > 10000) return reject(new Error('No se pudo cargar el acceso de Google Drive.'));
+        setTimeout(check,100);
+      };
+      check();
+    });
+  }
+
+  async function getDriveToken(){
+    if(driveTokenPromise) return driveTokenPromise;
+    driveTokenPromise = waitForGoogleIdentity().then(()=>new Promise((resolve,reject)=>{
+      driveTokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id:'741995913327-qo7tno84sk6pmnudv8mvtsgoo56e59ms.apps.googleusercontent.com',
+        scope:'https://www.googleapis.com/auth/drive.file',
+        callback:response=>{
+          if(response.error) reject(new Error(response.error_description || response.error));
+          else {
+            driveAccessToken = response.access_token;
+            resolve(driveAccessToken);
+          }
+          driveTokenPromise = null;
+        }
+      });
+      driveTokenClient.requestAccessToken({prompt:'consent'});
+    }).catch(error=>{
+      driveTokenPromise = null;
+      throw error;
+    }));
+    return driveTokenPromise;
+  }
+
+  async function getDriveFolderId(token){
+    if(driveFolderId) return driveFolderId;
+    const query = encodeURIComponent("name = 'GenalSAT' and mimeType = 'application/vnd.google-apps.folder' and trashed = false");
+    const existingResponse = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&spaces=drive&fields=files(id,name)`, {
+      headers:{Authorization:`Bearer ${token}`}
+    });
+    if(!existingResponse.ok) throw new Error(`No se pudo consultar Google Drive (${existingResponse.status}).`);
+    const existing = await existingResponse.json();
+    if(existing.files?.length){
+      driveFolderId = existing.files[0].id;
+      return driveFolderId;
+    }
+    const folderResponse = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+      method:'POST',
+      headers:{Authorization:`Bearer ${token}`, 'Content-Type':'application/json'},
+      body:JSON.stringify({name:'GenalSAT', mimeType:'application/vnd.google-apps.folder'})
+    });
+    if(!folderResponse.ok) throw new Error(`No se pudo crear la carpeta GenalSAT (${folderResponse.status}).`);
+    const folder = await folderResponse.json();
+    driveFolderId = folder.id;
+    return driveFolderId;
+  }
+
+  async function uploadToDrive(file){
+    const token = await getDriveToken();
+    const folderId = await getDriveFolderId(token);
+    const metadata = {name:file.name, mimeType:file.type || 'application/octet-stream', parents:[folderId]};
+    const boundary = `genalsat_${Date.now()}`;
+    const body = new Blob([
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
+      JSON.stringify(metadata),
+      `\r\n--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n`,
+      file,
+      `\r\n--${boundary}--`
+    ]);
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink', {
+      method:'POST',
+      headers:{Authorization:`Bearer ${token}`, 'Content-Type':`multipart/related; boundary=${boundary}`},
+      body
+    });
+    if(!response.ok){
+      const details = await response.text();
+      throw new Error(`Google Drive rechazó la subida (${response.status}): ${details}`);
+    }
+    const uploaded = await response.json();
+    return {
+      driveFileId:uploaded.id,
+      driveUrl:`https://drive.google.com/uc?export=download&id=${encodeURIComponent(uploaded.id)}`,
+      driveViewUrl:uploaded.webViewLink || `https://drive.google.com/drive/u/0/folders/${encodeURIComponent(folderId)}`,
+      name:uploaded.name,
+      type:uploaded.mimeType
+    };
+  }
+
+  async function deleteFromDrive(fileId){
+    if(!fileId) return;
+    const token = await getDriveToken();
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`, {
+      method:'DELETE',
+      headers:{Authorization:`Bearer ${token}`}
+    });
+    if(!response.ok && response.status !== 404) throw new Error(`Google Drive rechazó el borrado (${response.status}).`);
+  }
+
   window.GenalDB = {openDB,getAll,get,add,put,remove,seedIfEmpty};
+  window.GenalDrive = {upload:uploadToDrive, remove:deleteFromDrive};
 })(window);
