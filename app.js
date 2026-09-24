@@ -1650,12 +1650,12 @@ async function renderPendingAttachments(event){
   const files = Array.from(event.target.files || []);
   window._pendingPartAttachments = window._pendingPartAttachments || [];
   for(const file of files){
-    const dataUrl = await readFileAsDataUrl(file);
-    window._pendingPartAttachments.push({
-      name: file.name,
-      type: file.type,
-      dataUrl
-    });
+    try{
+      window._pendingPartAttachments.push(await GenalDrive.upload(file));
+    }catch(error){
+      console.error('No se pudo subir el adjunto a Google Drive.', error);
+      showToast(`No se pudo subir ${file.name} a Google Drive.`, 'error');
+    }
   }
   event.target.value = '';
   renderAttachmentList(window._pendingPartAttachments, document.getElementById('report-attachments-list'), true);
@@ -1711,7 +1711,7 @@ function renderAttachmentViewer(){
   const media = attachment.type?.startsWith('video/')
     ? document.createElement('video')
     : document.createElement('img');
-  media.src = attachment.dataUrl;
+  media.src = attachment.dataUrl || attachment.driveUrl;
   media.alt = attachment.name || 'Archivo adjunto';
   if(media.tagName === 'VIDEO'){
     media.controls = true;
@@ -1760,7 +1760,7 @@ function renderAttachmentList(attachments, container, editable=false, onRemove=n
     const preview = attachment.type.startsWith('video/')
       ? document.createElement('video')
       : document.createElement('img');
-    preview.src = attachment.dataUrl;
+    preview.src = attachment.dataUrl || attachment.driveUrl;
     preview.className = 'attachment-preview';
     if(preview.tagName === 'VIDEO'){
       preview.controls = true;
@@ -1787,13 +1787,24 @@ function renderAttachmentList(attachments, container, editable=false, onRemove=n
     item.appendChild(viewButton);
     const download = document.createElement('a');
     download.className = 'attachment-download';
-    download.href = attachment.dataUrl;
+    download.href = attachment.dataUrl || attachment.driveUrl;
     download.download = attachment.name || 'archivo-adjunto';
     download.textContent = 'Descargar';
     download.title = `Descargar ${attachment.name || 'archivo adjunto'}`;
     download.setAttribute('aria-label', `Descargar ${attachment.name || 'archivo adjunto'}`);
     download.addEventListener('click', event=>event.stopPropagation());
     item.appendChild(download);
+    if(attachment.driveViewUrl){
+      const driveLink = document.createElement('a');
+      driveLink.className = 'attachment-download attachment-drive-link';
+      driveLink.href = attachment.driveViewUrl;
+      driveLink.target = '_blank';
+      driveLink.rel = 'noopener';
+      driveLink.textContent = 'Abrir Drive';
+      driveLink.title = `Abrir ${attachment.name || 'archivo'} en Google Drive`;
+      driveLink.addEventListener('click', event=>event.stopPropagation());
+      item.appendChild(driveLink);
+    }
     if(editable || onRemove){
       const remove = document.createElement('button');
       remove.type = 'button';
@@ -1803,6 +1814,16 @@ function renderAttachmentList(attachments, container, editable=false, onRemove=n
       remove.addEventListener('click', async event=>{
         event.stopPropagation();
         if(editable){
+          const removedAttachment = window._pendingPartAttachments[index];
+          if(removedAttachment?.driveFileId){
+            try{
+              await GenalDrive.remove(removedAttachment.driveFileId);
+            }catch(error){
+              console.error('No se pudo eliminar el archivo de Google Drive.', error);
+              showToast('No se pudo quitar el archivo de Google Drive.', 'error');
+              return;
+            }
+          }
           window._pendingPartAttachments.splice(index, 1);
           renderAttachmentList(window._pendingPartAttachments, container, true);
         }else if(onRemove){
@@ -2157,7 +2178,7 @@ async function renderPartsList(){
     const media = attachment.type?.startsWith('video/')
       ? document.createElement('video')
       : document.createElement('img');
-    media.src = attachment.dataUrl;
+    media.src = attachment.dataUrl || attachment.driveUrl;
     media.alt = attachment.name || 'Archivo adjunto';
     if(media.tagName === 'VIDEO'){
       media.controls = true;
@@ -2260,6 +2281,16 @@ async function renderPartsList(){
         const currentPart = await GenalDB.get('parts', p.id);
         if(!currentPart) return;
         if(!confirm(`¿Eliminar el archivo "${currentPart.attachments?.[index]?.name || 'adjunto'}"?`)) return;
+        const removedAttachment = currentPart.attachments?.[index];
+        if(removedAttachment?.driveFileId){
+          try{
+            await GenalDrive.remove(removedAttachment.driveFileId);
+          }catch(error){
+            console.error('No se pudo eliminar el archivo de Google Drive.', error);
+            showToast('No se pudo eliminar el archivo de Google Drive.', 'error');
+            return;
+          }
+        }
         currentPart.attachments = (currentPart.attachments || []).filter((_, attachmentIndex)=>attachmentIndex !== index);
         await GenalDB.put('parts', currentPart);
         renderPartsList();
@@ -2449,11 +2480,12 @@ async function addAttachmentsToPart(part, event){
   if(!files.length) return;
   const attachments = part.attachments || [];
   for(const file of files){
-    attachments.push({
-      name: file.name,
-      type: file.type,
-      dataUrl: await readFileAsDataUrl(file)
-    });
+    try{
+      attachments.push(await GenalDrive.upload(file));
+    }catch(error){
+      console.error('No se pudo subir el adjunto a Google Drive.', error);
+      showToast(`No se pudo subir ${file.name} a Google Drive.`, 'error');
+    }
   }
   part.attachments = attachments;
   await GenalDB.put('parts', part);
