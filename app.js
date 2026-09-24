@@ -360,7 +360,9 @@ async function showView(view){
     document.getElementById('report-form').addEventListener('click', event=>{
       if(event.target.id === 'report-form') resetNewPartForm();
     });
-    document.getElementById('report-attachments').addEventListener('change', renderPendingAttachments);
+    const reportAttachments = document.getElementById('report-attachments');
+    reportAttachments.addEventListener('pointerdown', prepareDriveAccess);
+    reportAttachments.addEventListener('change', renderPendingAttachments);
     document.getElementById('report-status').addEventListener('change', ()=>{
       setPartFormLocked(window._editingPartId ? isFinalizedPartStatus(document.getElementById('report-status').value) : false);
     });
@@ -1661,6 +1663,13 @@ async function renderPendingAttachments(event){
   renderAttachmentList(window._pendingPartAttachments, document.getElementById('report-attachments-list'), true);
 }
 
+function prepareDriveAccess(){
+  GenalDrive.prepareAccess().catch(error=>{
+    console.error('No se pudo autorizar Google Drive.', error);
+    showToast(`No se pudo autorizar Google Drive: ${error.message || 'error de autenticación'}`, 'error');
+  });
+}
+
 function readFileAsDataUrl(file){
   return new Promise((resolve,reject)=>{
     const reader = new FileReader();
@@ -2333,6 +2342,7 @@ async function renderPartsList(){
       attachmentInput.title = partIsFinalized
         ? 'Los partes finalizados no se pueden modificar'
         : 'Añadir fotos o vídeos';
+      attachmentInput.addEventListener('pointerdown', prepareDriveAccess);
       attachmentInput.addEventListener('change', event=>addAttachmentsToPart(p, event));
       const summary = div.querySelector('.part-summary');
       summary.addEventListener('click', ()=>openPartDetailsModal(p.id));

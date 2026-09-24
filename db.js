@@ -213,6 +213,10 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     return driveTokenPromise;
   }
 
+  function prepareDriveAccess(){
+    return getDriveToken();
+  }
+
   async function getDriveFolderId(){
     if(driveFolderId) return driveFolderId;
     const token = await getDriveToken();
@@ -297,5 +301,5 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   }
 
   window.GenalDB = {openDB,getAll,get,add,put,remove,seedIfEmpty};
-  window.GenalDrive = {upload:uploadToDrive, remove:deleteFromDrive, download:downloadFromDrive};
+  window.GenalDrive = {upload:uploadToDrive, remove:deleteFromDrive, download:downloadFromDrive, prepareAccess:prepareDriveAccess};
 })(window);
