@@ -1,4 +1,4 @@
-const CACHE_NAME = 'genalsat-shell-v7';
+const CACHE_NAME = 'genalsat-shell-v8';
 const APP_SHELL = [
   './',
   './index.html',
@@ -25,6 +25,7 @@ self.addEventListener('activate', event=>{
 
 self.addEventListener('fetch', event=>{
   if(event.request.method !== 'GET') return;
+  if(event.request.url.startsWith('blob:') || event.request.url.startsWith('data:')) return;
   const requestUrl = new URL(event.request.url);
   if(requestUrl.origin === self.location.origin){
     event.respondWith(
