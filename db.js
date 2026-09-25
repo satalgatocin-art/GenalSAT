@@ -15,7 +15,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   };
   const firebaseApp = initializeApp(firebaseConfig);
   initializeAppCheck(firebaseApp, {
-    provider: new ReCaptchaEnterpriseProvider('6LezrM4tAAAAACYYAY34eg6150cu2kn33-sG7pYa'),
+    provider: new ReCaptchaEnterpriseProvider('6LdIsc4tAAAAACq9M8VhZbx20xIN_UGAjZavEHMF'),
     isTokenAutoRefreshEnabled: true
   });
   const auth = getAuth(firebaseApp);
