@@ -125,8 +125,23 @@ footer{padding:8px 24px;background:#fafafa;border-top:1px solid #eee}
 .inline-status-menu-mobile{left:50%;top:50%;max-width:calc(100vw - 24px);max-height:calc(100vh - 32px);transform:translate(-50%,-50%)}
 .attachment-download{display:inline-flex;align-items:center;padding:5px 8px;border-radius:4px;background:#2b8cff;color:#fff;text-decoration:none;font-size:.85rem;white-space:nowrap}
 .attachment-download:hover{background:#176fc9}
-.attachment-add-label{display:inline-flex;align-items:center;gap:8px;margin-top:8px;color:var(--accent);cursor:pointer;font-size:.9rem}
-.attachment-add-label input{max-width:220px}
+.attachment-upload-button{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  min-width:250px;margin-top:8px;padding:12px 18px;border:1px solid #93c5fd;
+  border-radius:11px;color:#12365f;background:linear-gradient(135deg,#eff7ff,#dbeafe);
+  box-shadow:0 4px 12px rgba(37,99,235,.12);cursor:pointer;font-weight:700;
+  transition:transform .18s ease,box-shadow .18s ease,background .18s ease
+}
+.attachment-upload-button:hover{background:linear-gradient(135deg,#e0f2fe,#bfdbfe);box-shadow:0 7px 18px rgba(37,99,235,.2);transform:translateY(-1px)}
+.attachment-upload-button:focus-within{outline:3px solid rgba(96,165,250,.3);outline-offset:2px}
+.attachment-upload-button small{color:#52708f;font-size:.75rem;font-weight:500}
+.attachment-upload-icon{
+  display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+  border-radius:8px;color:#fff;background:var(--accent);font-size:22px;line-height:1
+}
+.attachment-upload-button input{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
+.attachment-upload-button-compact{min-width:0;padding:9px 13px;font-size:.9rem}
+.attachment-upload-button-compact small{display:none}
 .client-related-cell{background:#fafbfd;padding:10px 14px!important}
 .client-related{display:grid;grid-template-columns:1fr 1fr;gap:24px}
 .client-related ul{margin:6px 0 0;padding-left:20px}

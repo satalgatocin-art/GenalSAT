@@ -359,7 +359,12 @@ async function showView(view){
         <h3>Trabajos realizados por el técnico</h3>
         <textarea id="report-technician-work" rows="4" placeholder="Describe las comprobaciones y trabajos realizados" style="width:100%;resize:vertical"></textarea>
         <h3>Fotos y vídeos</h3>
-        <input id="report-attachments" type="file" accept="image/*,video/*" multiple>
+        <label class="attachment-upload-button" for="report-attachments">
+          <span class="attachment-upload-icon" aria-hidden="true">↥</span>
+          <span>Subir fotos o vídeos</span>
+          <small>JPG, PNG, WebP, MP4 o WebM</small>
+          <input id="report-attachments" type="file" accept="image/*,video/*" multiple>
+        </label>
         <div id="report-attachments-list" class="attachments-list small"></div>
       </div>
       <div class="card">
@@ -1726,7 +1731,6 @@ async function resolveAttachmentUrl(attachment){
     attachment._previewUrl = URL.createObjectURL(blob);
     return attachment._previewUrl;
   }catch(error){
-    console.error('No se pudo cargar el archivo desde Google Drive.', error);
     return '';
   }
 }
@@ -1739,7 +1743,7 @@ async function downloadAttachment(attachment){
     link.click();
     return;
   }
-  const blob = await GenalDrive.download(attachment.driveFileId);
+  const blob = await GenalDrive.download(attachment.driveFileId, true);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -1789,8 +1793,11 @@ async function renderAttachmentViewer(){
   const media = attachment.type?.startsWith('video/')
     ? document.createElement('video')
     : document.createElement('img');
-  const mediaUrl = await resolveAttachmentUrl(attachment);
-  if(!mediaUrl) return;
+  const mediaUrl = await resolveAttachmentUrl(attachment, true);
+  if(!mediaUrl){
+    stage.textContent = 'Autoriza Google Drive para ver este archivo.';
+    return;
+  }
   media.src = mediaUrl;
   media.alt = attachment.name || 'Archivo adjunto';
   if(media.tagName === 'VIDEO'){
@@ -2256,8 +2263,11 @@ async function renderPartsList(){
     const media = attachment.type?.startsWith('video/')
       ? document.createElement('video')
       : document.createElement('img');
-    const mediaUrl = await resolveAttachmentUrl(attachment);
-    if(!mediaUrl) return;
+    const mediaUrl = await resolveAttachmentUrl(attachment, true);
+    if(!mediaUrl){
+      stage.textContent = 'Autoriza Google Drive para ver este archivo.';
+      return;
+    }
     media.src = mediaUrl;
     media.alt = attachment.name || 'Archivo adjunto';
     if(media.tagName === 'VIDEO'){
@@ -2351,7 +2361,9 @@ async function renderPartsList(){
           <table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th></tr></thead><tbody>${pieceHtml.join('').replace(/<li>(.*?) x (.*?)<\/li>/g, '<tr><td>$1</td><td>$2</td></tr>') || '<tr><td colspan="2" class="small">Ninguna</td></tr>'}</tbody></table>
           <p><strong>Fotos y vídeos:</strong></p>
           <div class="part-attachments"></div>
-          <label class="attachment-add-label">Añadir fotos o vídeos
+          <label class="attachment-upload-button attachment-upload-button-compact">
+            <span class="attachment-upload-icon" aria-hidden="true">↥</span>
+            <span>Añadir fotos o vídeos</span>
             <input class="part-attachment-input" type="file" accept="image/*,video/*" multiple>
           </label>
         </div>`;
@@ -2499,7 +2511,9 @@ async function openPartDetailsModal(partId){
       <section class="part-detail-section"><h4>Piezas utilizadas</h4><table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th><th>Descontar stock</th></tr></thead><tbody>${pieceRows || '<tr><td colspan="3" class="small">Ninguna</td></tr>'}</tbody></table></section>
       <section class="part-detail-section"><h4>Fotos y vídeos</h4>
         <div class="part-modal-attachments"></div>
-        ${isFinalizedPartStatus(part.status) ? '<p class="small">Los informes finalizados no se pueden modificar.</p>' : `<label class="attachment-add-label">Añadir fotos o vídeos
+        ${isFinalizedPartStatus(part.status) ? '<p class="small">Los informes finalizados no se pueden modificar.</p>' : `<label class="attachment-upload-button attachment-upload-button-compact">
+          <span class="attachment-upload-icon" aria-hidden="true">↥</span>
+          <span>Añadir fotos o vídeos</span>
           <input class="part-modal-attachment-input" type="file" accept="image/*,video/*" multiple>
         </label>`}
       </section>
