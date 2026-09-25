@@ -1,5 +1,6 @@
 /* db.js - Firebase Authentication + Firestore persistence */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app-check.js';
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, reauthenticateWithPopup, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
@@ -13,6 +14,10 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     appId: '1:741995913327:web:f307bef632be8ae9902d9a'
   };
   const firebaseApp = initializeApp(firebaseConfig);
+  initializeAppCheck(firebaseApp, {
+    provider: new ReCaptchaEnterpriseProvider('6LezrM4tAAAAACYYAY34eg6150cu2kn33-sG7pYa'),
+    isTokenAutoRefreshEnabled: true
+  });
   const auth = getAuth(firebaseApp);
   const firestore = getFirestore(firebaseApp);
   const googleProvider = new GoogleAuthProvider();
@@ -313,8 +318,8 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     }
   }
 
-  async function downloadFromDrive(fileId){
-    const token = await getDriveToken(false);
+  async function downloadFromDrive(fileId, interactive=false){
+    const token = await getDriveToken(interactive);
     const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, {
       headers:{Authorization:`Bearer ${token}`}
     });
