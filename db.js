@@ -18,14 +18,11 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   const googleProvider = new GoogleAuthProvider();
   googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
   googleProvider.setCustomParameters({prompt:'consent'});
-  const driveSilentProvider = new GoogleAuthProvider();
-  driveSilentProvider.addScope('https://www.googleapis.com/auth/drive.file');
-  driveSilentProvider.setCustomParameters({prompt:'none'});
   let currentUser = null;
   let legacyMigrationChecked = false;
   let driveTokenPromise = null;
-  let driveAccessToken = '';
-  let driveTokenExpiresAt = 0;
+  let driveAccessToken = sessionStorage.getItem('genalsat-drive-token') || '';
+  let driveTokenExpiresAt = Number(sessionStorage.getItem('genalsat-drive-token-expiry') || 0);
   let driveFolderId = null;
   let authReadyResolve;
   const authReady = new Promise(resolve=>{ authReadyResolve = resolve; });
@@ -54,6 +51,8 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
         if(googleCredential?.accessToken){
           driveAccessToken = googleCredential.accessToken;
           driveTokenExpiresAt = Date.now() + 3600000;
+          sessionStorage.setItem('genalsat-drive-token', driveAccessToken);
+          sessionStorage.setItem('genalsat-drive-token-expiry', String(driveTokenExpiresAt));
         }
       }catch(signInError){
         console.error('No se pudo iniciar sesión con Google.', signInError);
@@ -68,7 +67,13 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   onAuthStateChanged(auth, user=>{
     currentUser = user;
     if(user) document.getElementById('firebase-login')?.remove();
-    else showLogin();
+    else {
+      driveAccessToken = '';
+      driveTokenExpiresAt = 0;
+      sessionStorage.removeItem('genalsat-drive-token');
+      sessionStorage.removeItem('genalsat-drive-token-expiry');
+      showLogin();
+    }
     if(user) authReadyResolve(user);
   });
 
@@ -209,16 +214,12 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
       if(!credential?.accessToken) throw new Error('Google no devolvió un token para Google Drive.');
       driveAccessToken = credential.accessToken;
       driveTokenExpiresAt = Date.now() + 3600000;
+      sessionStorage.setItem('genalsat-drive-token', driveAccessToken);
+      sessionStorage.setItem('genalsat-drive-token-expiry', String(driveTokenExpiresAt));
       return driveAccessToken;
     };
-    const getInteractiveToken = error=>{
-      if(!interactive) throw error;
-      return reauthenticateWithPopup(currentUser, googleProvider).then(extractToken);
-    };
-    driveTokenPromise = reauthenticateWithPopup(currentUser, driveSilentProvider)
-      .then(extractToken)
-      .catch(getInteractiveToken)
-      .then(token=>{
+    if(!interactive) throw new Error('La autorización de Google Drive ha caducado. Selecciona un archivo para volver a autorizarla.');
+    driveTokenPromise = reauthenticateWithPopup(currentUser, googleProvider).then(extractToken).then(token=>{
         driveTokenPromise = null;
         return token;
       }).catch(error=>{
