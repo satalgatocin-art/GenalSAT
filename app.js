@@ -685,12 +685,29 @@ async function populateReportPartOptions(){
   const {types,statuses}=await getPartSettings();
   const type = document.getElementById('report-type');
   const filter = document.getElementById('filter-part-type');
-  if(type) type.innerHTML = '<option value="">Tipo de parte</option>'+types.map(v=>`<option>${v}</option>`).join('');
-  if(filter) filter.innerHTML = '<option value="">Todos los tipos</option>'+types.map(v=>`<option>${v}</option>`).join('');
   const status = document.getElementById('report-status');
   const statusFilter = document.getElementById('filter-part-status');
-  if(status) status.innerHTML = statuses.map(v=>`<option value="${v.name}">${v.name}</option>`).join('');
-  if(statusFilter) statusFilter.innerHTML = '<option value="">Todos los estados</option>'+statuses.map(v=>`<option value="${v.name}">${v.name}</option>`).join('');
+  const fillOptions = (select, placeholder, values)=>{
+    if(!select) return;
+    select.replaceChildren();
+    if(placeholder){
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = placeholder;
+      select.appendChild(option);
+    }
+    values.forEach(value=>{
+      const option = document.createElement('option');
+      const label = typeof value === 'string' ? value : value.name;
+      option.value = label;
+      option.textContent = label;
+      select.appendChild(option);
+    });
+  };
+  fillOptions(type, 'Tipo de parte', types);
+  fillOptions(filter, 'Todos los tipos', types);
+  fillOptions(status, '', statuses);
+  fillOptions(statusFilter, 'Todos los estados', statuses);
   return statuses;
 }
 
@@ -3008,17 +3025,17 @@ async function openBudgetFromPartModal(partId, budgetId=null){
     <div class="budget-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="part-budget-title">
       <div class="budget-editor-header">
         <div>
-          <h3 id="part-budget-title">${existingBudget ? `Modificar ${existingBudget.number}` : `Presupuesto desde ${budgetPart.number || 'informe de trabajo'}`}</h3>
+          <h3 id="part-budget-title">${existingBudget ? `Modificar ${escapeHtml(existingBudget.number || 'presupuesto')}` : `Presupuesto desde ${escapeHtml(budgetPart.number || 'informe de trabajo')}`}</h3>
               <p class="small">${existingBudget ? 'Presupuesto existente vinculado al parte. Puedes modificar sus precios.' : 'Informe de trabajo y piezas utilizadas. Los precios empiezan en 0,00.'}</p>
         </div>
         <button type="button" class="close-btn" data-budget-action="close" aria-label="Cerrar">×</button>
       </div>
       <div class="budget-report-summary">
-        <p><strong>Cliente:</strong> ${getClientDisplayName(client)}</p>
-        <p><strong>Dirección:</strong> ${[client?.address, [client?.postalCode, client?.locality, client?.province].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—'}</p>
+        <p><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}</p>
+        <p><strong>Dirección:</strong> ${escapeHtml([client?.address, [client?.postalCode, client?.locality, client?.province].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—')}</p>
         <p><strong>Equipo:</strong> ${escapeHtml(device.brand || '—')} ${escapeHtml(device.model || '')} ${device.serialNumber ? `· SN: ${escapeHtml(device.serialNumber)}` : ''}</p>
-        <p><strong>Problema:</strong> ${budgetPart.customerProblem || budgetPart.desc || '—'}</p>
-        <p><strong>Trabajo realizado:</strong> ${budgetPart.technicianWork || '—'}</p>
+        <p><strong>Problema:</strong> ${escapeHtml(budgetPart.customerProblem || budgetPart.desc || '—')}</p>
+        <p><strong>Trabajo realizado:</strong> ${escapeHtml(budgetPart.technicianWork || '—')}</p>
       </div>
       <div class="budget-editor-lines">
         <table class="table">
@@ -3037,7 +3054,7 @@ async function openBudgetFromPartModal(partId, budgetId=null){
   const tbody = modal.querySelector('#part-budget-lines');
   lines.forEach((line, index)=>{
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${line.desc}</td><td>${line.qty}</td><td><input type="number" min="0" step="0.01" value="${line.price}" data-budget-price="${index}" aria-label="Precio unitario"></td><td data-budget-amount="${index}">0.00</td>`;
+    row.innerHTML = `<td>${escapeHtml(line.desc)}</td><td>${Number(line.qty) || 0}</td><td><input type="number" min="0" step="0.01" value="${Number(line.price) || 0}" data-budget-price="${index}" aria-label="Precio unitario"></td><td data-budget-amount="${index}">0.00</td>`;
     tbody.appendChild(row);
   });
   const updateTotals = ()=>{
@@ -3543,7 +3560,7 @@ async function renderInvoicesList(){
       : inv.issued
         ? 'Factura emitida: no eliminable'
         : 'Factura cobrada: no eliminable';
-    tr.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${inv.id}" aria-label="Seleccionar ${inv.number}"></td><td>${inv.number}</td><td>${budgetInfo}</td><td>${partInfo}</td><td>${clientName}</td><td>${createdDate.toLocaleString()}</td><td>${fmtCurrency(inv.total)}</td><td><button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-id="${inv.id}" data-action="preview">👁</button> <button class="btn invoice-status ${issuedClass}" title="${inv.issued ? 'Desmarcar emitida' : 'Marcar factura como emitida'}" data-id="${inv.id}" data-action="issued">${issuedLabel}</button> <button class="btn invoice-status ${paidClass}" title="${inv.paid ? 'Marcar factura como pendiente de cobro' : 'Marcar factura como cobrada'}" data-id="${inv.id}" data-action="paid">${paidLabel}</button> <button class="icon-btn pdf-action" title="Descargar PDF" aria-label="Descargar PDF" data-id="${inv.id}" data-action="pdf">🖨</button> <button class="icon-btn danger" title="${protectedInvoice ? protectedReason : 'Eliminar'}" aria-label="${protectedInvoice ? protectedReason : 'Eliminar'}" data-id="${inv.id}" data-action="del" ${protectedInvoice ? 'disabled' : ''}>🗑</button></td>`;
+    tr.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${Number(inv.id)}" aria-label="Seleccionar ${escapeHtml(inv.number || 'factura')}"></td><td>${escapeHtml(inv.number || '—')}</td><td>${budgetInfo}</td><td>${partInfo}</td><td>${escapeHtml(clientName)}</td><td>${escapeHtml(createdDate.toLocaleString())}</td><td>${escapeHtml(fmtCurrency(inv.total))}</td><td><button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-id="${Number(inv.id)}" data-action="preview">👁</button> <button class="btn invoice-status ${issuedClass}" title="${inv.issued ? 'Desmarcar emitida' : 'Marcar factura como emitida'}" data-id="${Number(inv.id)}" data-action="issued">${issuedLabel}</button> <button class="btn invoice-status ${paidClass}" title="${inv.paid ? 'Marcar factura como pendiente de cobro' : 'Marcar factura como cobrada'}" data-id="${Number(inv.id)}" data-action="paid">${paidLabel}</button> <button class="icon-btn pdf-action" title="Descargar PDF" aria-label="Descargar PDF" data-id="${Number(inv.id)}" data-action="pdf">🖨</button> <button class="icon-btn danger" title="${escapeHtml(protectedInvoice ? protectedReason : 'Eliminar')}" aria-label="${escapeHtml(protectedInvoice ? protectedReason : 'Eliminar')}" data-id="${Number(inv.id)}" data-action="del" ${protectedInvoice ? 'disabled' : ''}>🗑</button></td>`;
     tbody.appendChild(tr);
     visibleRows.push(tr);
     tr.addEventListener('click', event=>{

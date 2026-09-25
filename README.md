@@ -31,6 +31,8 @@ Seguridad y límites
 - Los adjuntos permitidos son JPG, PNG, WebP, MP4 y WebM. Las imágenes están limitadas a 10 MB y los vídeos a 100 MB; también se comprueba la firma binaria del archivo.
 - Las importaciones JSON están limitadas a 20 MB, deben contener un objeto y no pueden superar 10.000 registros por colección.
 - Tras cambiar el alcance de Drive puede ser necesario volver a autorizar Google Drive. Revisa en Google Cloud Console los dominios autorizados y considera activar Firebase App Check antes de abrir el servicio a más usuarios.
+- El service worker solo cachea recursos locales de la aplicación. Las respuestas de Firebase, Google y Drive se solicitan siempre a la red y no se guardan en la caché local.
+- GitHub Pages no permite configurar cabeceras HTTP personalizadas desde este repositorio. Para aplicar `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy`, `frame-ancestors` y HSTS como cabeceras reales, publica el sitio detrás de un CDN o proxy que permita configurarlas.
 
 Funcionalidades incluidas en esta entrega (MVP):
 - Gestión de stock: añadir, editar cantidad, eliminar productos. La tabla incluye el tipo de producto y el buscador permite localizar por código, nombre o tipo.

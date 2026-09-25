@@ -1,4 +1,4 @@
-const CACHE_NAME = 'genalsat-shell-v5';
+const CACHE_NAME = 'genalsat-shell-v6';
 const APP_SHELL = [
   './',
   './index.html',
@@ -36,11 +36,7 @@ self.addEventListener('fetch', event=>{
     );
     return;
   }
-  event.respondWith(
-    caches.match(event.request).then(cached=>cached || fetch(event.request).then(response=>{
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then(cache=>cache.put(event.request, copy));
-      return response;
-    }))
-  );
+  // Never cache third-party or authenticated responses. Drive media responses
+  // are private and may differ between users for the same file URL.
+  return;
 });
