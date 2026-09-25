@@ -3217,12 +3217,6 @@ async function renderAgendaView(container){
   const clients = await GenalDB.getAll('clients');
   const partsById = new Map(parts.map(part=>[Number(part.id), part]));
   const clientsById = new Map(clients.map(client=>[Number(client.id), client]));
-  for(const appointment of appointments){
-    const part = partsById.get(Number(appointment.partId));
-    if(part) await syncAppointmentsForPart(part);
-  }
-  const refreshedAppointments = await GenalDB.getAll('appointments');
-  appointments.splice(0, appointments.length, ...refreshedAppointments);
   const monthAppointments = appointments
     .filter(item=>agendaMonthKey(new Date(item.dateTime)) === selectedKey)
     .sort((a,b)=>new Date(a.dateTime)-new Date(b.dateTime));

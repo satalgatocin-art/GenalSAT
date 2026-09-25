@@ -1,4 +1,4 @@
-const CACHE_NAME = 'genalsat-shell-v8';
+const CACHE_NAME = 'genalsat-shell-v9';
 const APP_SHELL = [
   './',
   './index.html',
