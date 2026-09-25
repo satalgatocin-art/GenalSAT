@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   }catch(error){
     console.error('No se pudo iniciar GenalSAT.', error);
     const app = document.getElementById('app');
-    if(app) app.innerHTML = `<div class="card startup-error"><h2>No se pudo iniciar GenalSAT</h2><p>${error.message || 'Error desconocido'}</p><p>Comprueba que Google está activado en Firebase Authentication y recarga la página.</p></div>`;
+    if(app) app.innerHTML = `<div class="card startup-error"><h2>No se pudo iniciar GenalSAT</h2><p>${escapeHtml(error.message || 'Error desconocido')}</p><p>Comprueba que Google está activado en Firebase Authentication y recarga la página.</p></div>`;
   }
   if('serviceWorker' in navigator && (location.protocol === 'http:' || location.protocol === 'https:')){
     navigator.serviceWorker.register('./sw.js').catch(error=>console.warn('No se pudo registrar la PWA.', error));
@@ -19,6 +19,15 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 window._listSort = window._listSort || {parts:'asc', budgets:'asc', invoices:'asc', clients:'asc'};
 window._listPages = window._listPages || {};
 const LIST_PAGE_SIZE = 50;
+function escapeHtml(value){
+  return String(value ?? '').replace(/[&<>"']/g, character=>({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[character]));
+}
 async function validateAttachmentFile(file){
   const allowedTypes = new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm']);
   const maxSize = file.type.startsWith('video/') ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
@@ -753,7 +762,7 @@ async function renderStockList(){
   const pageData = pagedItems(filtered, 'products');
   pageData.items.forEach(p=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${p.code||''}</td><td>${p.name||''}</td><td>${p.type||'—'}</td><td>${p.qty||0}</td><td>${Number(p.price||0).toFixed(2)} €</td><td>${(Number(p.price||0) * Number(p.qty||0)).toFixed(2)} €</td><td><button class="icon-btn edit-action" title="Editar" aria-label="Editar" data-id="${p.id}" data-action="edit">✎</button> <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar" data-id="${p.id}" data-action="del">🗑</button></td>`;
+    tr.innerHTML = `<td>${escapeHtml(p.code||'')}</td><td>${escapeHtml(p.name||'')}</td><td>${escapeHtml(p.type||'—')}</td><td>${Number(p.qty||0)}</td><td>${Number(p.price||0).toFixed(2)} €</td><td>${(Number(p.price||0) * Number(p.qty||0)).toFixed(2)} €</td><td><button class="icon-btn edit-action" title="Editar" aria-label="Editar" data-id="${Number(p.id)}" data-action="edit">✎</button> <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar" data-id="${Number(p.id)}" data-action="del">🗑</button></td>`;
     tbody.appendChild(tr);
   });
   table.appendChild(tbody); wrap.appendChild(table);
@@ -1176,28 +1185,28 @@ async function openClientDetailsModal(client){
   modal.innerHTML = `
     <div class="client-details-dialog" role="dialog" aria-modal="true" aria-labelledby="client-details-title">
       <div class="report-form-header">
-        <h3 id="client-details-title">${getClientDisplayName(client)}</h3>
+        <h3 id="client-details-title">${escapeHtml(getClientDisplayName(client))}</h3>
         <button type="button" class="close-btn" aria-label="Cerrar">×</button>
       </div>
       <div class="client-details-data">
-        <p><strong>Nombre:</strong> ${getClientDisplayName(client)}</p>
-        <p><strong>Dirección:</strong> ${client.address || '—'}</p>
-        <p><strong>Localidad:</strong> ${client.locality || '—'}</p>
-        <p><strong>Provincia:</strong> ${client.province || '—'}</p>
-        <p><strong>Código postal:</strong> ${client.postalCode || '—'}</p>
-        <p><strong>DNI / NIF:</strong> ${client.dni || '—'}</p>
-        <p><strong>Teléfono:</strong> ${client.phone || '—'}</p>
+        <p><strong>Nombre:</strong> ${escapeHtml(getClientDisplayName(client))}</p>
+        <p><strong>Dirección:</strong> ${escapeHtml(client.address || '—')}</p>
+        <p><strong>Localidad:</strong> ${escapeHtml(client.locality || '—')}</p>
+        <p><strong>Provincia:</strong> ${escapeHtml(client.province || '—')}</p>
+        <p><strong>Código postal:</strong> ${escapeHtml(client.postalCode || '—')}</p>
+        <p><strong>DNI / NIF:</strong> ${escapeHtml(client.dni || '—')}</p>
+        <p><strong>Teléfono:</strong> ${escapeHtml(client.phone || '—')}</p>
         <p><strong>Fecha de alta:</strong> ${client.createdAt ? new Date(client.createdAt).toLocaleString() : '—'}</p>
       </div>
       <div class="client-related">
         <div><h4>Partes (${clientParts.length})</h4>
-          <ul>${clientParts.length ? clientParts.map(part=>`<li><button type="button" class="client-part-link" data-part-id="${part.id}">${part.number || 'Parte'}</button> · ${part.status || 'Pte revisión'} · ${new Date(part.createdAt).toLocaleDateString()}</li>`).join('') : '<li class="small">Sin partes</li>'}</ul>
+          <ul>${clientParts.length ? clientParts.map(part=>`<li><button type="button" class="client-part-link" data-part-id="${Number(part.id)}">${escapeHtml(part.number || 'Parte')}</button> · ${escapeHtml(part.status || 'Pte revisión')} · ${new Date(part.createdAt).toLocaleDateString()}</li>`).join('') : '<li class="small">Sin partes</li>'}</ul>
         </div>
         <div><h4>Presupuestos (${clientBudgets.length})</h4>
-          <ul>${clientBudgets.length ? clientBudgets.map(budget=>`<li><button type="button" class="client-budget-link" data-budget-id="${budget.id}">${budget.number}</button> · ${fmtCurrency(budget.total)} · ${new Date(budget.createdAt).toLocaleDateString()}</li>`).join('') : '<li class="small">Sin presupuestos</li>'}</ul>
+          <ul>${clientBudgets.length ? clientBudgets.map(budget=>`<li><button type="button" class="client-budget-link" data-budget-id="${Number(budget.id)}">${escapeHtml(budget.number)}</button> · ${fmtCurrency(budget.total)} · ${new Date(budget.createdAt).toLocaleDateString()}</li>`).join('') : '<li class="small">Sin presupuestos</li>'}</ul>
         </div>
         <div><h4>Facturas (${clientInvoices.length})</h4>
-          <ul>${clientInvoices.length ? clientInvoices.map(invoice=>`<li><button type="button" class="client-invoice-link" data-invoice-id="${invoice.id}">${invoice.number}</button> · ${fmtCurrency(invoice.total)} · ${invoice.issued ? 'Emitida' : 'Pendiente'} · ${new Date(invoice.createdAt).toLocaleDateString()}</li>`).join('') : '<li class="small">Sin facturas</li>'}</ul>
+          <ul>${clientInvoices.length ? clientInvoices.map(invoice=>`<li><button type="button" class="client-invoice-link" data-invoice-id="${Number(invoice.id)}">${escapeHtml(invoice.number)}</button> · ${fmtCurrency(invoice.total)} · ${invoice.issued ? 'Emitida' : 'Pendiente'} · ${new Date(invoice.createdAt).toLocaleDateString()}</li>`).join('') : '<li class="small">Sin facturas</li>'}</ul>
         </div>
       </div>
       <div class="modal-footer"><button type="button" class="btn" data-client-detail-action="edit">Editar</button></div>
@@ -1969,10 +1978,10 @@ function renderPartsTable(wrap, pageData, total, technicianMode=false){
       <div class="part-mobile-details">
         <dl>
           <div><dt>Fecha</dt><dd>${new Date(p.createdAt).toLocaleDateString()}</dd></div>
-          <div><dt>Tipo</dt><dd>${p.type || '—'}</dd></div>
-          <div><dt>Marca</dt><dd>${device.brand || '—'}</dd></div>
-          <div><dt>Modelo</dt><dd>${device.model || '—'}</dd></div>
-          <div><dt>Nº serie</dt><dd>${device.serialNumber || '—'}</dd></div>
+          <div><dt>Tipo</dt><dd>${escapeHtml(p.type || '—')}</dd></div>
+          <div><dt>Marca</dt><dd>${escapeHtml(device.brand || '—')}</dd></div>
+          <div><dt>Modelo</dt><dd>${escapeHtml(device.model || '—')}</dd></div>
+          <div><dt>Nº serie</dt><dd>${escapeHtml(device.serialNumber || '—')}</dd></div>
         </dl>
         <div class="part-actions">
           <button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-action="preview-report">👁</button>
@@ -1983,11 +1992,11 @@ function renderPartsTable(wrap, pageData, total, technicianMode=false){
           <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar" data-action="del">🗑</button>
         </div>
       </div>`;
-    row.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${p.id}" aria-label="Seleccionar ${p.number || 'parte'}"></td>
-      <td class="part-number-cell">${p.number || 'Informe antiguo'}</td>
-      <td class="part-client-cell">${getClientDisplayName(client)}</td><td class="part-date-cell">${new Date(p.createdAt).toLocaleDateString()}</td><td class="part-appointment-time">${appointmentTime}</td>
-      <td>${p.type || '—'}</td><td>${device.brand || '—'}</td><td>${device.model || '—'}</td>
-      <td>${device.serialNumber || '—'}</td><td class="part-status-cell" title="Pulsar para cambiar el estado"><span class="part-status">${displayStatus}</span></td>
+    row.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${Number(p.id)}" aria-label="Seleccionar ${escapeHtml(p.number || 'parte')}"></td>
+      <td class="part-number-cell">${escapeHtml(p.number || 'Informe antiguo')}</td>
+      <td class="part-client-cell">${escapeHtml(getClientDisplayName(client))}</td><td class="part-date-cell">${new Date(p.createdAt).toLocaleDateString()}</td><td class="part-appointment-time">${escapeHtml(appointmentTime)}</td>
+      <td>${escapeHtml(p.type || '—')}</td><td>${escapeHtml(device.brand || '—')}</td><td>${escapeHtml(device.model || '—')}</td>
+      <td>${escapeHtml(device.serialNumber || '—')}</td><td class="part-status-cell" title="Pulsar para cambiar el estado"><span class="part-status">${escapeHtml(displayStatus)}</span></td>
       <td><div class="part-actions">
         <button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-action="preview-report">👁</button>
         <button class="icon-btn pdf-action" title="Exportar PDF" aria-label="Exportar PDF" data-action="pdf-report"><span>PDF</span></button>
@@ -2778,12 +2787,12 @@ async function renderBudgetsList(){
     visible++;
     const tr = document.createElement('tr');
     const invoiceInfo = linkedInvoice
-      ? `<button class="budget-invoice-link" data-invoice-id="${linkedInvoice.id}">${linkedInvoice.number}</button> · ${fmtCurrency(linkedInvoice.total)} · ${linkedInvoice.issued ? 'Emitida' : 'Pendiente'}`
+      ? `<button class="budget-invoice-link" data-invoice-id="${Number(linkedInvoice.id)}">${escapeHtml(linkedInvoice.number)}</button> · ${fmtCurrency(linkedInvoice.total)} · ${linkedInvoice.issued ? 'Emitida' : 'Pendiente'}`
       : '—';
     const partInfo = b.fromPart
-      ? `<button class="budget-part-link" data-part-id="${b.fromPart}">${partNumber}</button>`
+      ? `<button class="budget-part-link" data-part-id="${Number(b.fromPart)}">${escapeHtml(partNumber)}</button>`
       : '—';
-    tr.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${b.id}" aria-label="Seleccionar ${b.number}"></td><td>${b.number}</td><td>${partInfo}</td><td>${clientName}</td><td>${createdDate.toLocaleString()}</td><td>${fmtCurrency(b.total)}</td><td>${invoiceInfo}</td><td><button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-id="${b.id}" data-action="preview">👁</button> <button class="icon-btn edit-action" title="Modificar" aria-label="Modificar" data-id="${b.id}" data-action="edit">✎</button> <button class="icon-btn pdf-action" title="Descargar PDF" aria-label="Descargar PDF" data-id="${b.id}" data-action="pdf">🖨</button> <button class="icon-btn invoice-action" title="Crear factura" aria-label="Crear factura" data-id="${b.id}" data-action="invoice"><span>$</span></button> <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar" data-id="${b.id}" data-action="del">🗑</button></td>`;
+    tr.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${Number(b.id)}" aria-label="Seleccionar ${escapeHtml(b.number)}"></td><td>${escapeHtml(b.number)}</td><td>${partInfo}</td><td>${escapeHtml(clientName)}</td><td>${createdDate.toLocaleString()}</td><td>${fmtCurrency(b.total)}</td><td>${invoiceInfo}</td><td><button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-id="${Number(b.id)}" data-action="preview">👁</button> <button class="icon-btn edit-action" title="Modificar" aria-label="Modificar" data-id="${Number(b.id)}" data-action="edit">✎</button> <button class="icon-btn pdf-action" title="Descargar PDF" aria-label="Descargar" data-id="${Number(b.id)}" data-action="pdf">🖨</button> <button class="icon-btn invoice-action" title="Crear factura" aria-label="Crear factura" data-id="${Number(b.id)}" data-action="invoice"><span>$</span></button> <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar" data-id="${Number(b.id)}" data-action="del">🗑</button></td>`;
     tr.addEventListener('click', event=>{
       if(event.target.closest('button,input')) return;
       previewBudget(b.id);
@@ -3401,7 +3410,7 @@ async function chooseBudgetForInvoice(partId, budgets){
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'btn budget-invoice-choice';
-    button.innerHTML = `<strong>${budget.number}</strong> · ${new Date(budget.createdAt).toLocaleString()} · ${fmtCurrency(budget.total)}`;
+    button.innerHTML = `<strong>${escapeHtml(budget.number)}</strong> · ${new Date(budget.createdAt).toLocaleString()} · ${fmtCurrency(budget.total)}`;
     list.appendChild(button);
   });
   return new Promise(resolve=>{
@@ -3499,10 +3508,10 @@ async function renderInvoicesList(){
     const issuedLabel = inv.issued ? 'Emitida' : 'Marcar emitida';
     const issuedClass = inv.issued ? 'invoice-issued' : 'invoice-pending';
     const budgetInfo = inv.fromBudget
-      ? `<button class="invoice-budget-link" data-budget-id="${inv.fromBudget}">${inv.budgetNumber || 'Presupuesto'}</button>`
+      ? `<button class="invoice-budget-link" data-budget-id="${Number(inv.fromBudget)}">${escapeHtml(inv.budgetNumber || 'Presupuesto')}</button>`
       : '—';
     const partInfo = inv.fromPart && inv.partNumber
-      ? `<button class="invoice-budget-link" data-part-id="${inv.fromPart}">${inv.partNumber}</button>`
+      ? `<button class="invoice-budget-link" data-part-id="${Number(inv.fromPart)}">${escapeHtml(inv.partNumber)}</button>`
       : '—';
     const paidLabel = inv.paid ? 'Cobrada' : 'Marcar cobrada';
     const paidClass = inv.paid ? 'invoice-paid' : 'invoice-unpaid';
@@ -3935,7 +3944,15 @@ async function exportData(){
 async function importData(e){
   const f = e.target.files[0]; if(!f) return; const txt = await f.text();
   try{
+    if(f.type && f.type !== 'application/json' && !f.name.toLowerCase().endsWith('.json')) throw new Error('Selecciona un archivo JSON válido.');
+    if(f.size > 20 * 1024 * 1024) throw new Error('La copia de seguridad supera el límite de 20 MB.');
     const obj = JSON.parse(txt);
+    if(!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('La copia de seguridad no tiene un formato válido.');
+    const collections = ['products','clients','parts','budgets','invoices','moves','appointments'];
+    collections.forEach(name=>{
+      if(obj[name] !== undefined && !Array.isArray(obj[name])) throw new Error(`La colección ${name} no es válida.`);
+      if((obj[name] || []).length > 10000) throw new Error(`La colección ${name} supera el límite permitido.`);
+    });
     // simple import: clear and insert
     if(confirm('La importación añadirá los datos del archivo al almacén actual. ¿Deseas continuar?')){
       // naive approach: add each item
