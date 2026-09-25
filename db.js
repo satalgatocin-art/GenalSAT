@@ -18,6 +18,9 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   const googleProvider = new GoogleAuthProvider();
   googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
   googleProvider.setCustomParameters({prompt:'consent'});
+  const driveSilentProvider = new GoogleAuthProvider();
+  driveSilentProvider.addScope('https://www.googleapis.com/auth/drive.file');
+  driveSilentProvider.setCustomParameters({prompt:'none'});
   let currentUser = null;
   let legacyMigrationChecked = false;
   let driveTokenPromise = null;
@@ -197,18 +200,28 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     }
   }
 
-  async function getDriveToken(){
+  async function getDriveToken(interactive=false){
     if(driveAccessToken && Date.now() < driveTokenExpiresAt - 60000) return driveAccessToken;
     if(driveTokenPromise) return driveTokenPromise;
     if(!currentUser) throw new Error('Se requiere una sesión de Google antes de autorizar Google Drive.');
-    driveTokenPromise = reauthenticateWithPopup(currentUser, googleProvider).then(result=>{
+    const extractToken = result=>{
       const credential = GoogleAuthProvider.credentialFromResult(result);
       if(!credential?.accessToken) throw new Error('Google no devolvió un token para Google Drive.');
       driveAccessToken = credential.accessToken;
       driveTokenExpiresAt = Date.now() + 3600000;
-      driveTokenPromise = null;
       return driveAccessToken;
-    }).catch(error=>{
+    };
+    const getInteractiveToken = error=>{
+      if(!interactive) throw error;
+      return reauthenticateWithPopup(currentUser, googleProvider).then(extractToken);
+    };
+    driveTokenPromise = reauthenticateWithPopup(currentUser, driveSilentProvider)
+      .then(extractToken)
+      .catch(getInteractiveToken)
+      .then(token=>{
+        driveTokenPromise = null;
+        return token;
+      }).catch(error=>{
       driveTokenPromise = null;
       throw error;
     });
@@ -216,12 +229,12 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   }
 
   function prepareDriveAccess(){
-    return getDriveToken();
+    return getDriveToken(true);
   }
 
   async function getDriveFolderId(){
     if(driveFolderId) return driveFolderId;
-    const token = await getDriveToken();
+    const token = await getDriveToken(true);
     const query = encodeURIComponent("name = 'WEB' and mimeType = 'application/vnd.google-apps.folder' and trashed = false");
     const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&spaces=drive&fields=files(id,name)&pageSize=10`, {
       headers:{Authorization:`Bearer ${token}`}
@@ -249,7 +262,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     const maxSize = file.type.startsWith('video/') ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
     if(!allowedTypes.has(file.type)) throw new Error('Solo se permiten JPG, PNG, WebP, MP4 o WebM.');
     if(file.size <= 0 || file.size > maxSize) throw new Error(`El archivo supera el límite permitido de ${file.type.startsWith('video/') ? '100 MB' : '10 MB'}.`);
-    const token = await getDriveToken();
+    const token = await getDriveToken(true);
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 180) || 'archivo-adjunto';
     const metadata = {name:safeName, mimeType:file.type, parents:[await getDriveFolderId()]};
     const boundary = `genalsat_${Date.now()}`;
@@ -284,7 +297,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
 
   async function deleteFromDrive(fileId){
     if(!fileId) return;
-    const token = await getDriveToken();
+    const token = await getDriveToken(true);
     const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`, {
       method:'DELETE',
       headers:{Authorization:`Bearer ${token}`}
@@ -300,7 +313,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   }
 
   async function downloadFromDrive(fileId){
-    const token = await getDriveToken();
+    const token = await getDriveToken(false);
     const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, {
       headers:{Authorization:`Bearer ${token}`}
     });
