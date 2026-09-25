@@ -19,6 +19,13 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 window._listSort = window._listSort || {parts:'asc', budgets:'asc', invoices:'asc', clients:'asc'};
 window._listPages = window._listPages || {};
 const LIST_PAGE_SIZE = 50;
+function debounce(callback, delay=150){
+  let timer;
+  return (...args)=>{
+    clearTimeout(timer);
+    timer = setTimeout(()=>callback(...args), delay);
+  };
+}
 function escapeHtml(value){
   return String(value ?? '').replace(/[&<>"']/g, character=>({
     '&':'&amp;',
@@ -408,8 +415,9 @@ async function showView(view){
     document.getElementById('report-status').addEventListener('change', ()=>{
       setPartFormLocked(window._editingPartId ? isFinalizedPartStatus(document.getElementById('report-status').value) : false);
     });
-    document.querySelectorAll('.parts-filters input').forEach(input=>{
-      input.addEventListener('input', renderPartsList);
+    const debouncedPartsRender = debounce(renderPartsList);
+    document.querySelectorAll('.parts-filters input:not([type="date"])').forEach(input=>{
+      input.addEventListener('input', debouncedPartsRender);
     });
     const moreFiltersToggle = document.querySelector('.parts-more-filters-toggle');
     const moreFilters = document.querySelector('.parts-more-filters');
@@ -1955,8 +1963,9 @@ function setupPartDateFilter(){
     renderPartsList();
   };
   mode.addEventListener('change', updateDateMode);
-  rangeFields.addEventListener('input', renderPartsList);
-  singleDate.addEventListener('input', renderPartsList);
+  const debouncedRender = debounce(renderPartsList);
+  rangeFields.addEventListener('input', debouncedRender);
+  singleDate.addEventListener('input', debouncedRender);
   singleDate.hidden = false;
   rangeFields.hidden = true;
 }
@@ -2164,26 +2173,31 @@ function renderPartsTable(wrap, pageData, total, technicianMode=false){
 
 async function renderPartsList(){
   if(window._mobileFilterOpen) return;
-  const parts = await GenalDB.getAll('parts');
+  const [parts, settingsRecord, appointments, clients, products] = await Promise.all([
+    GenalDB.getAll('parts'),
+    GenalDB.get('settings','config'),
+    GenalDB.getAll('appointments'),
+    GenalDB.getAll('clients'),
+    GenalDB.getAll('products')
+  ]);
   const wrap = document.getElementById('parts-list'); if(!wrap) return; wrap.innerHTML='';
   if(parts.length===0){ wrap.innerHTML='<p class="small">No hay informes todavía.</p>'; return; }
-  const settings = await GenalDB.get('settings','config') || {};
+  const settings = settingsRecord || {};
   const technicianMode = Boolean(settings.streetTechnicianMode);
   const todayKey = localDateKey(new Date());
   const appointmentsByPart = new Map();
   const pendingTodayParts = new Set();
-  {
-    const appointments = await GenalDB.getAll('appointments');
-    for(const appointment of appointments){
-      const partId = Number(appointment.partId);
-      if(!appointmentsByPart.has(partId)) appointmentsByPart.set(partId, []);
-      appointmentsByPart.get(partId).push(appointment);
-      if(localDateKey(appointment.dateTime) === todayKey && appointment.status !== 'Finalizada'){
-        pendingTodayParts.add(partId);
-      }
+  const clientsById = new Map(clients.map(client=>[String(client.id), client]));
+  const productsById = new Map(products.map(product=>[String(product.id), product]));
+  for(const appointment of appointments){
+    const partId = Number(appointment.partId);
+    if(!appointmentsByPart.has(partId)) appointmentsByPart.set(partId, []);
+    appointmentsByPart.get(partId).push(appointment);
+    if(localDateKey(appointment.dateTime) === todayKey && appointment.status !== 'Finalizada'){
+      pendingTodayParts.add(partId);
     }
-    for(const items of appointmentsByPart.values()) items.sort((a,b)=>new Date(a.dateTime)-new Date(b.dateTime));
   }
+  for(const items of appointmentsByPart.values()) items.sort((a,b)=>new Date(a.dateTime)-new Date(b.dateTime));
   const filterValue = id => (document.getElementById(id)?.value || '').trim().toLocaleLowerCase();
   const filters = {
     number: filterValue('filter-part-number'),
@@ -2207,11 +2221,11 @@ async function renderPartsList(){
   const searchableParts = [];
   for(const p of parts){
     if(technicianMode && !hasDirectSearch && !pendingTodayParts.has(Number(p.id))) continue;
-    const client = await GenalDB.get('clients', p.clientId);
+    const client = clientsById.get(String(p.clientId));
     const pieces = p.pieces || p.lines || [];
     const pieceNames = [];
     for(const piece of pieces){
-      const product = piece.productId ? await GenalDB.get('products', piece.productId) : null;
+      const product = piece.productId ? productsById.get(String(piece.productId)) : null;
       if(product) pieceNames.push(`${product.code || ''} ${product.name || ''}`);
       else if(piece.description) pieceNames.push(piece.description);
     }
