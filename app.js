@@ -19,6 +19,26 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 window._listSort = window._listSort || {parts:'asc', budgets:'asc', invoices:'asc', clients:'asc'};
 window._listPages = window._listPages || {};
 const LIST_PAGE_SIZE = 50;
+async function validateAttachmentFile(file){
+  const allowedTypes = new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm']);
+  const maxSize = file.type.startsWith('video/') ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+  if(!allowedTypes.has(file.type)) throw new Error('Solo se permiten archivos JPG, PNG, WebP, MP4 o WebM.');
+  if(file.size <= 0 || file.size > maxSize) throw new Error(`El archivo supera el límite de ${file.type.startsWith('video/') ? '100 MB' : '10 MB'}.`);
+  const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const isJpeg = header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+  const isPng = header.slice(0, 8).every((value, index)=>value === [0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a][index]);
+  const isWebp = String.fromCharCode(...header.slice(0, 4)) === 'RIFF'
+    && String.fromCharCode(...header.slice(8, 12)) === 'WEBP';
+  const isMp4 = String.fromCharCode(...header.slice(4, 8)) === 'ftyp';
+  const isWebm = header[0] === 0x1a && header[1] === 0x45 && header[2] === 0xdf && header[3] === 0xa3;
+  if(!((file.type === 'image/jpeg' && isJpeg)
+    || (file.type === 'image/png' && isPng)
+    || (file.type === 'image/webp' && isWebp)
+    || (file.type === 'video/mp4' && isMp4)
+    || (file.type === 'video/webm' && isWebm))){
+    throw new Error('El contenido del archivo no coincide con su tipo declarado.');
+  }
+}
 function pagedItems(items, key){
   const pages = Math.max(1, Math.ceil(items.length / LIST_PAGE_SIZE));
   const page = Math.min(Math.max(1, Number(window._listPages[key] || 1)), pages);
@@ -1653,6 +1673,7 @@ async function renderPendingAttachments(event){
   window._pendingPartAttachments = window._pendingPartAttachments || [];
   for(const file of files){
     try{
+      await validateAttachmentFile(file);
       window._pendingPartAttachments.push(await GenalDrive.upload(file));
     }catch(error){
       console.error('No se pudo subir el adjunto a Google Drive.', error);
@@ -2560,6 +2581,7 @@ async function addAttachmentsToPart(part, event){
   const attachments = part.attachments || [];
   for(const file of files){
     try{
+      await validateAttachmentFile(file);
       attachments.push(await GenalDrive.upload(file));
     }catch(error){
       console.error('No se pudo subir el adjunto a Google Drive.', error);

@@ -16,7 +16,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   const auth = getAuth(firebaseApp);
   const firestore = getFirestore(firebaseApp);
   const googleProvider = new GoogleAuthProvider();
-  googleProvider.addScope('https://www.googleapis.com/auth/drive');
+  googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
   googleProvider.setCustomParameters({prompt:'consent'});
   let currentUser = null;
   let legacyMigrationChecked = false;
@@ -244,8 +244,14 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   }
 
   async function uploadToDrive(file){
+    if(!(file instanceof File)) throw new Error('El archivo seleccionado no es válido.');
+    const allowedTypes = new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm']);
+    const maxSize = file.type.startsWith('video/') ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+    if(!allowedTypes.has(file.type)) throw new Error('Solo se permiten JPG, PNG, WebP, MP4 o WebM.');
+    if(file.size <= 0 || file.size > maxSize) throw new Error(`El archivo supera el límite permitido de ${file.type.startsWith('video/') ? '100 MB' : '10 MB'}.`);
     const token = await getDriveToken();
-    const metadata = {name:file.name, mimeType:file.type || 'application/octet-stream', parents:[await getDriveFolderId()]};
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 180) || 'archivo-adjunto';
+    const metadata = {name:safeName, mimeType:file.type, parents:[await getDriveFolderId()]};
     const boundary = `genalsat_${Date.now()}`;
     const body = new Blob([
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
