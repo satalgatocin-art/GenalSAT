@@ -20,10 +20,17 @@ Las fotos y vídeos adjuntos se suben a Google Drive dentro de la carpeta `WEB`;
 2. En **APIs y servicios > Pantalla de consentimiento de OAuth**, configura la aplicación y añade tu cuenta como usuario de prueba si la aplicación está en modo de pruebas.
 3. En **APIs y servicios > Credenciales**, abre el cliente OAuth web cuyo ID termina en `apps.googleusercontent.com`.
 4. Añade como **Orígenes de JavaScript autorizados** el origen de GitHub Pages, por ejemplo `https://TU_USUARIO.github.io`, sin la ruta del repositorio.
-5. La aplicación solicita el alcance `https://www.googleapis.com/auth/drive` porque necesita localizar y usar la carpeta `WEB` que ya existe en Drive. Vuelve a cargar la aplicación, inicia sesión con Google y concede este permiso una sola vez.
+5. La aplicación solicita el alcance reducido `https://www.googleapis.com/auth/drive.file`. Vuelve a cargar la aplicación, inicia sesión con Google y concede este permiso una sola vez. Este alcance permite gestionar los archivos creados por la aplicación sin conceder acceso completo a todo Drive.
 6. Si no encuentra una carpeta llamada `WEB`, crea una automáticamente y la usa para las siguientes subidas.
 
 La aplicación usa las colecciones `users/{uid}/products`, `clients`, `parts`, `budgets`, `invoices`, `settings`, `moves` y `appointments`. Cada usuario solo puede leer y modificar sus propias colecciones según las reglas incluidas.
+
+Seguridad y límites
+-------------------
+- Publica siempre [firestore.rules](./firestore.rules) después de modificarlo. Las reglas rechazan usuarios no autenticados, aíslan cada usuario en su propio `uid`, limitan las colecciones permitidas y rechazan documentos con más de 100 campos.
+- Los adjuntos permitidos son JPG, PNG, WebP, MP4 y WebM. Las imágenes están limitadas a 10 MB y los vídeos a 100 MB; también se comprueba la firma binaria del archivo.
+- Las importaciones JSON están limitadas a 20 MB, deben contener un objeto y no pueden superar 10.000 registros por colección.
+- Tras cambiar el alcance de Drive puede ser necesario volver a autorizar Google Drive. Revisa en Google Cloud Console los dominios autorizados y considera activar Firebase App Check antes de abrir el servicio a más usuarios.
 
 Funcionalidades incluidas en esta entrega (MVP):
 - Gestión de stock: añadir, editar cantidad, eliminar productos. La tabla incluye el tipo de producto y el buscador permite localizar por código, nombre o tipo.

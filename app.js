@@ -28,6 +28,14 @@ function escapeHtml(value){
     "'":'&#39;'
   }[character]));
 }
+function safeImageSource(value){
+  const source = String(value || '');
+  return /^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=\s]+$/i.test(source) ? source : '';
+}
+function safeFileName(value, fallback='documento'){
+  const name = String(value || fallback).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim();
+  return `${name || fallback}.pdf`;
+}
 async function validateAttachmentFile(file){
   const allowedTypes = new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm']);
   const maxSize = file.type.startsWith('video/') ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
@@ -532,20 +540,20 @@ async function showView(view){
       <details class="settings-section"><summary>Datos de la empresa</summary>
       <div class="settings-section-body">
         <div class="form-row">
-        <input id="company-name" placeholder="Nombre empresa" value="${company.name||''}" style="flex:1">
-        <input id="company-tax" placeholder="CIF/NIF" value="${company.tax||''}">
+        <input id="company-name" placeholder="Nombre empresa" value="${escapeHtml(company.name||'')}" style="flex:1">
+        <input id="company-tax" placeholder="CIF/NIF" value="${escapeHtml(company.tax||'')}">
         </div>
         <div class="form-row">
-        <input id="company-address" placeholder="Dirección" value="${company.address||''}" style="flex:1">
-        <input id="company-postal" placeholder="Código postal" value="${company.postal||''}" style="width:120px">
+        <input id="company-address" placeholder="Dirección" value="${escapeHtml(company.address||'')}" style="flex:1">
+        <input id="company-postal" placeholder="Código postal" value="${escapeHtml(company.postal||'')}" style="width:120px">
         </div>
         <div class="form-row">
-        <input id="company-city" placeholder="Población" value="${company.city||''}">
-        <input id="company-province" placeholder="Provincia" value="${company.province||''}">
+        <input id="company-city" placeholder="Población" value="${escapeHtml(company.city||'')}">
+        <input id="company-province" placeholder="Provincia" value="${escapeHtml(company.province||'')}">
         </div>
         <div class="form-row">
-        <input id="company-phone" placeholder="Teléfono" value="${company.phone||''}">
-        <input id="company-email" placeholder="Email" value="${company.email||''}">
+        <input id="company-phone" placeholder="Teléfono" value="${escapeHtml(company.phone||'')}">
+        <input id="company-email" placeholder="Email" value="${escapeHtml(company.email||'')}">
         </div>
       </div>
       </details>
@@ -553,7 +561,7 @@ async function showView(view){
         <div class="form-row">
         <label class="small">Logo (PNG/JPG)</label>
         <input id="s-logo" type="file" accept="image/*">
-        <img id="logo-preview" src="${settings.logo||''}" alt="" style="height:48px;object-fit:contain">
+        <img id="logo-preview" src="${safeImageSource(settings.logo)}" alt="" style="height:48px;object-fit:contain">
         </div>
       </div></details>
       <details class="settings-section"><summary>Tipos de parte</summary>
@@ -2306,7 +2314,7 @@ async function renderPartsList(){
     wrap.appendChild(div);
     const linesHtml = pieces.map(async l=>{
       const prod = l.productId ? await GenalDB.get('products', l.productId) : null;
-      return `<li>${l.description || prod?.name || '(pieza eliminada)'} x ${l.qty}</li>`;
+      return `<li>${escapeHtml(l.description || prod?.name || '(pieza eliminada)')} x ${escapeHtml(l.qty)}</li>`;
     });
     const device = p.device || {};
     const displayStatus = p.status === 'Terminado' ? 'Finalizado' : (p.status || 'Pte revisión');
@@ -2316,14 +2324,14 @@ async function renderPartsList(){
         <div class="part-summary" tabindex="0" role="button" aria-expanded="false">
           <input type="checkbox" class="row-select" data-row-id="${p.id}" aria-label="Seleccionar ${p.number}">
           <div class="part-summary-main">
-            <strong>${p.number || 'Informe antiguo'}</strong>
+            <strong>${escapeHtml(p.number || 'Informe antiguo')}</strong>
             <span>${new Date(p.createdAt).toLocaleDateString()}</span>
-            <span><strong>Cliente:</strong> ${getClientDisplayName(client)}</span>
-            <span><strong>Tipo:</strong> ${p.type || '—'}</span>
-            <span><strong>Modelo:</strong> ${device.model || '—'}</span>
-            <span><strong>Marca:</strong> ${device.brand || '—'}</span>
-            <span><strong>Nº serie:</strong> ${device.serialNumber || '—'}</span>
-            <span class="part-status" data-status-name="${displayStatus}">${displayStatus}</span>
+            <span><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}</span>
+            <span><strong>Tipo:</strong> ${escapeHtml(p.type || '—')}</span>
+            <span><strong>Modelo:</strong> ${escapeHtml(device.model || '—')}</span>
+            <span><strong>Marca:</strong> ${escapeHtml(device.brand || '—')}</span>
+            <span><strong>Nº serie:</strong> ${escapeHtml(device.serialNumber || '—')}</span>
+            <span class="part-status" data-status-name="${escapeHtml(displayStatus)}">${escapeHtml(displayStatus)}</span>
           </div>
           <div class="part-actions">
             <button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-id="${p.id}" data-action="preview-report">👁</button>
@@ -2335,10 +2343,10 @@ async function renderPartsList(){
           </div>
         </div>
         <div class="part-details" hidden>
-          <p><strong>Cliente:</strong> ${getClientDisplayName(client)} · <strong>Teléfono:</strong> ${client?.phone || client?.contact || '—'} · <strong>Dirección:</strong> ${client?.address || '—'}</p>
-          <p><strong>Equipo:</strong> ${device.brand||'—'} ${device.model||''} ${device.serialNumber ? `· SN: ${device.serialNumber}` : ''}</p>
-          <p><strong>Problema del cliente:</strong> ${p.customerProblem || p.desc || '—'}</p>
-          <p><strong>Trabajos realizados:</strong> ${p.technicianWork || '—'}</p>
+          <p><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))} · <strong>Teléfono:</strong> ${escapeHtml(client?.phone || client?.contact || '—')} · <strong>Dirección:</strong> ${escapeHtml(client?.address || '—')}</p>
+          <p><strong>Equipo:</strong> ${escapeHtml(device.brand||'—')} ${escapeHtml(device.model||'')} ${device.serialNumber ? `· SN: ${escapeHtml(device.serialNumber)}` : ''}</p>
+          <p><strong>Problema del cliente:</strong> ${escapeHtml(p.customerProblem || p.desc || '—')}</p>
+          <p><strong>Trabajos realizados:</strong> ${escapeHtml(p.technicianWork || '—')}</p>
           <h4>Piezas utilizadas</h4>
           <table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th></tr></thead><tbody>${pieceHtml.join('').replace(/<li>(.*?) x (.*?)<\/li>/g, '<tr><td>$1</td><td>$2</td></tr>') || '<tr><td colspan="2" class="small">Ninguna</td></tr>'}</tbody></table>
           <p><strong>Fotos y vídeos:</strong></p>
@@ -2465,27 +2473,27 @@ async function openPartDetailsModal(partId){
   modal.id = 'part-details-modal';
   modal.className = 'modal part-details-modal show';
   modal.innerHTML = `<div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="part-details-title">
-    <div class="modal-header"><h3 id="part-details-title">${part.number || 'Informe de trabajo'}</h3><button type="button" class="close-btn" aria-label="Cerrar">×</button></div>
+    <div class="modal-header"><h3 id="part-details-title">${escapeHtml(part.number || 'Informe de trabajo')}</h3><button type="button" class="close-btn" aria-label="Cerrar">×</button></div>
     <div class="modal-body">
       <div class="part-detail-section part-detail-overview">
         <div class="part-detail-field"><span class="part-detail-label">Fecha</span><strong>${part.createdAt ? new Date(part.createdAt).toLocaleString() : '—'}</strong></div>
-        <div class="part-detail-field"><span class="part-detail-label">Estado</span><strong class="part-detail-status">${part.status || 'Pte revisión'}</strong></div>
+        <div class="part-detail-field"><span class="part-detail-label">Estado</span><strong class="part-detail-status">${escapeHtml(part.status || 'Pte revisión')}</strong></div>
       </div>
       <div class="part-detail-grid">
         <section class="part-detail-section"><h4>Cliente</h4><dl class="part-detail-data">
-          <div><dt>Nombre</dt><dd>${getClientDisplayName(client)}</dd></div>
-          <div><dt>Teléfono</dt><dd>${client?.phone || client?.contact || '—'}</dd></div>
-          <div><dt>Dirección</dt><dd>${client?.address || '—'}, ${client?.postalCode || ''} ${client?.locality || ''} ${client?.province || ''}</dd></div>
+          <div><dt>Nombre</dt><dd>${escapeHtml(getClientDisplayName(client))}</dd></div>
+          <div><dt>Teléfono</dt><dd>${escapeHtml(client?.phone || client?.contact || '—')}</dd></div>
+          <div><dt>Dirección</dt><dd>${escapeHtml(client?.address || '—')}, ${escapeHtml(client?.postalCode || '')} ${escapeHtml(client?.locality || '')} ${escapeHtml(client?.province || '')}</dd></div>
         </dl></section>
         <section class="part-detail-section"><h4>Equipo</h4><dl class="part-detail-data">
-          <div><dt>Marca</dt><dd>${device.brand || '—'}</dd></div>
-          <div><dt>Modelo</dt><dd>${device.model || '—'}</dd></div>
-          <div><dt>Nº serie</dt><dd>${device.serialNumber || '—'}</dd></div>
+          <div><dt>Marca</dt><dd>${escapeHtml(device.brand || '—')}</dd></div>
+          <div><dt>Modelo</dt><dd>${escapeHtml(device.model || '—')}</dd></div>
+          <div><dt>Nº serie</dt><dd>${escapeHtml(device.serialNumber || '—')}</dd></div>
         </dl></section>
       </div>
       <div class="part-detail-grid">
-        <section class="part-detail-section"><h4>Problema del cliente</h4><p class="part-detail-text">${part.customerProblem || part.desc || '—'}</p></section>
-        <section class="part-detail-section"><h4>Trabajos realizados</h4><p class="part-detail-text">${part.technicianWork || '—'}</p></section>
+        <section class="part-detail-section"><h4>Problema del cliente</h4><p class="part-detail-text">${escapeHtml(part.customerProblem || part.desc || '—')}</p></section>
+        <section class="part-detail-section"><h4>Trabajos realizados</h4><p class="part-detail-text">${escapeHtml(part.technicianWork || '—')}</p></section>
       </div>
       <section class="part-detail-section"><h4>Citas</h4><ul class="part-detail-list">${appointmentHtml}</ul></section>
       <section class="part-detail-section"><h4>Piezas utilizadas</h4><table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th><th>Descontar stock</th></tr></thead><tbody>${pieceRows || '<tr><td colspan="3" class="small">Ninguna</td></tr>'}</tbody></table></section>
@@ -2625,35 +2633,35 @@ function documentStart(){ return DOCUMENT_STYLE; }
 
 function buildPartReportHTML(part, client, cfg, appointments=[]){
   const company = cfg.company || {};
-  const logoSrc = cfg.logo || '';
+  const logoSrc = safeImageSource(cfg.logo);
   const device = part.device || {};
   const pieces = part.pieces || part.lines || [];
   let html = documentStart();
   html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">`;
   if(logoSrc) html += `<div style="flex:0 0 160px"><img src="${logoSrc}" alt="logo" style="max-height:80px;max-width:160px;object-fit:contain"></div>`;
-  html += `<div style="flex:1;text-align:right"><strong>${company.name||'Mi Empresa'}</strong><br>`;
+  html += `<div style="flex:1;text-align:right"><strong>${escapeHtml(company.name||'Mi Empresa')}</strong><br>`;
   const companyAddress = [company.address, [company.postal, company.city, company.province].filter(Boolean).join(' ')].filter(Boolean);
-  if(companyAddress.length) html += companyAddress.join('<br>') + '<br>';
-  if(company.tax) html += `CIF/NIF: ${company.tax}<br>`;
-  if(company.phone) html += `Tel: ${company.phone}<br>`;
-  if(company.email) html += `${company.email}<br>`;
+  if(companyAddress.length) html += companyAddress.map(escapeHtml).join('<br>') + '<br>';
+  if(company.tax) html += `CIF/NIF: ${escapeHtml(company.tax)}<br>`;
+  if(company.phone) html += `Tel: ${escapeHtml(company.phone)}<br>`;
+  if(company.email) html += `${escapeHtml(company.email)}<br>`;
   html += `</div></div>`;
-  html += `<h2 style="margin:8px 0">Informe de trabajo ${part.number || ''}</h2>`;
+  html += `<h2 style="margin:8px 0">Informe de trabajo ${escapeHtml(part.number || '')}</h2>`;
   html += `<p><strong>Fecha:</strong> ${new Date(part.createdAt).toLocaleString()}</p>`;
   html += `<h3>Datos del cliente</h3>`;
-  html += `<p><strong>Nombre:</strong> ${getClientDisplayName(client)}<br>`;
-  if(client?.address) html += `${client.address}<br>`;
+  html += `<p><strong>Nombre:</strong> ${escapeHtml(getClientDisplayName(client))}<br>`;
+  if(client?.address) html += `${escapeHtml(client.address)}<br>`;
   const clientLocation = [client?.postalCode, client?.locality, client?.province].filter(Boolean).join(' ');
-  if(clientLocation) html += `${clientLocation}<br>`;
-  html += `<strong>Teléfono:</strong> ${client?.phone || client?.contact || '—'}</p>`;
+  if(clientLocation) html += `${escapeHtml(clientLocation)}<br>`;
+  html += `<strong>Teléfono:</strong> ${escapeHtml(client?.phone || client?.contact || '—')}</p>`;
   html += `<h3>Producto revisado</h3>`;
-  html += `<p><strong>Marca:</strong> ${device.brand || '—'} &nbsp; <strong>Modelo:</strong> ${device.model || '—'} &nbsp; <strong>SN:</strong> ${device.serialNumber || '—'}</p>`;
-  html += `<h3>Problema detectado por el cliente</h3><p style="white-space:pre-wrap">${part.customerProblem || part.desc || '—'}</p>`;
-  html += `<h3>Trabajos realizados por el técnico</h3><p style="white-space:pre-wrap">${part.technicianWork || '—'}</p>`;
+  html += `<p><strong>Marca:</strong> ${escapeHtml(device.brand || '—')} &nbsp; <strong>Modelo:</strong> ${escapeHtml(device.model || '—')} &nbsp; <strong>SN:</strong> ${escapeHtml(device.serialNumber || '—')}</p>`;
+  html += `<h3>Problema detectado por el cliente</h3><p style="white-space:pre-wrap">${escapeHtml(part.customerProblem || part.desc || '—')}</p>`;
+  html += `<h3>Trabajos realizados por el técnico</h3><p style="white-space:pre-wrap">${escapeHtml(part.technicianWork || '—')}</p>`;
   html += `<h3>Piezas utilizadas</h3><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Pieza</th><th style="border-bottom:1px solid #ccc">Cantidad</th></tr></thead><tbody>`;
   for(const piece of pieces){
     const product = piece.productId ? window._partProductsCache?.[piece.productId] : null;
-    html += `<tr><td style="padding:6px 0">${piece.description || product?.name || 'Pieza'}</td><td style="text-align:center">${piece.qty}</td></tr>`;
+    html += `<tr><td style="padding:6px 0">${escapeHtml(piece.description || product?.name || 'Pieza')}</td><td style="text-align:center">${Number(piece.qty) || 0}</td></tr>`;
   }
   html += `</tbody></table></div>`;
   return html;
@@ -2687,7 +2695,7 @@ async function previewPart(partId){
 async function exportPartPDF(partId){
   const report = await getPartReportHTML(partId);
   if(!report) return;
-  const opt = { margin: 10, filename: `${report.part.number || 'informe'}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+  const opt = { margin: 10, filename: safeFileName(report.part.number, 'informe'), image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
   const el = document.createElement('div'); el.innerHTML = report.html; document.body.appendChild(el);
   try{ await html2pdf().from(el).set(opt).save(); }catch(err){ showToast('Error generando PDF del informe', 'error'); }
   el.remove();
@@ -2994,7 +3002,7 @@ async function openBudgetFromPartModal(partId, budgetId=null){
       <div class="budget-report-summary">
         <p><strong>Cliente:</strong> ${getClientDisplayName(client)}</p>
         <p><strong>Dirección:</strong> ${[client?.address, [client?.postalCode, client?.locality, client?.province].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—'}</p>
-        <p><strong>Equipo:</strong> ${device.brand || '—'} ${device.model || ''} ${device.serialNumber ? `· SN: ${device.serialNumber}` : ''}</p>
+        <p><strong>Equipo:</strong> ${escapeHtml(device.brand || '—')} ${escapeHtml(device.model || '')} ${device.serialNumber ? `· SN: ${escapeHtml(device.serialNumber)}` : ''}</p>
         <p><strong>Problema:</strong> ${budgetPart.customerProblem || budgetPart.desc || '—'}</p>
         <p><strong>Trabajo realizado:</strong> ${budgetPart.technicianWork || '—'}</p>
       </div>
@@ -3210,7 +3218,7 @@ async function renderAgendaView(container){
   }
   const partOptions = eligibleParts
     .slice().sort((a,b)=>String(a.number || '').localeCompare(String(b.number || ''),'es',{numeric:true}))
-    .map(part=>`<option value="${part.id}" ${Number(part.id) === Number(editingAppointment?.partId) ? 'selected' : ''}>${part.number || 'Informe'} · ${getClientDisplayName(clientsById.get(Number(part.clientId)))}${!isAgendaAppointmentStatus(part.status) ? ' · estado actual' : ''}</option>`).join('');
+    .map(part=>`<option value="${escapeHtml(part.id)}" ${Number(part.id) === Number(editingAppointment?.partId) ? 'selected' : ''}>${escapeHtml(part.number || 'Informe')} · ${escapeHtml(getClientDisplayName(clientsById.get(Number(part.clientId))))}${!isAgendaAppointmentStatus(part.status) ? ' · estado actual' : ''}</option>`).join('');
   const card = document.createElement('div');
   card.className = 'card agenda-view';
   card.innerHTML = `
@@ -3666,38 +3674,38 @@ async function exportInvoicePDF(invoiceId){
   const cfg = await getConfig(); window._lastCfg = cfg;
   // build a simple invoice HTML with company header and logo
   const company = cfg.company || {};
-  const logoSrc = cfg.logo || window._pendingLogoDataUrl || '';
+  const logoSrc = safeImageSource(cfg.logo || window._pendingLogoDataUrl);
   let html = documentStart();
   html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">`;
   if(logoSrc){ html += `<div style="flex:0 0 160px"><img src=\"${logoSrc}\" alt=\"logo\" style=\"max-height:80px;max-width:160px;object-fit:contain\"></div>`; }
   html += `<div style="flex:1;text-align:right">`;
-  html += `<strong>${company.name||'Mi Empresa'}</strong><br>`;
+  html += `<strong>${escapeHtml(company.name||'Mi Empresa')}</strong><br>`;
   // address lines: street, postal/city/province
   const addrPartsInv = [];
   if(company.address) addrPartsInv.push(company.address);
   const locInv = [company.postal, company.city, company.province].filter(Boolean).join(' ');
   if(locInv) addrPartsInv.push(locInv);
-  if(addrPartsInv.length) html += addrPartsInv.join('<br>') + '<br>';
-  if(company.tax) html += `CIF/NIF: ${company.tax}<br>`;
-  if(company.phone) html += `Tel: ${company.phone} `;
-  if(company.email) html += `${company.email}<br>`;
+  if(addrPartsInv.length) html += addrPartsInv.map(escapeHtml).join('<br>') + '<br>';
+  if(company.tax) html += `CIF/NIF: ${escapeHtml(company.tax)}<br>`;
+  if(company.phone) html += `Tel: ${escapeHtml(company.phone)} `;
+  if(company.email) html += `${escapeHtml(company.email)}<br>`;
   html += `</div></div>`;
-  html += `<h3 style=\"margin:8px 0\">Factura ${inv.number}</h3>`;
-  html += `<p><strong>Cliente:</strong> ${getClientDisplayName(client)}<br>
-    <strong>Dirección:</strong> ${client?.address || '—'}<br>
-    <strong>Localidad:</strong> ${client?.locality || '—'}<br>
-    <strong>Provincia:</strong> ${client?.province || '—'}<br>
-    <strong>Código postal:</strong> ${client?.postalCode || '—'}<br>
-    <strong>DNI / NIF:</strong> ${client?.dni || '—'}<br>
-    <strong>Teléfono:</strong> ${client?.phone || client?.contact || '—'}${client?.email ? `<br><strong>Email:</strong> ${client.email}` : ''}</p>`;
+  html += `<h3 style=\"margin:8px 0\">Factura ${escapeHtml(inv.number)}</h3>`;
+  html += `<p><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}<br>
+    <strong>Dirección:</strong> ${escapeHtml(client?.address || '—')}<br>
+    <strong>Localidad:</strong> ${escapeHtml(client?.locality || '—')}<br>
+    <strong>Provincia:</strong> ${escapeHtml(client?.province || '—')}<br>
+    <strong>Código postal:</strong> ${escapeHtml(client?.postalCode || '—')}<br>
+    <strong>DNI / NIF:</strong> ${escapeHtml(client?.dni || '—')}<br>
+    <strong>Teléfono:</strong> ${escapeHtml(client?.phone || client?.contact || '—')}${client?.email ? `<br><strong>Email:</strong> ${escapeHtml(client.email)}` : ''}</p>`;
   html += `<p><strong>Fecha:</strong> ${new Date(inv.createdAt).toLocaleString()}</p>`;
   html += `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Descripción</th><th style="border-bottom:1px solid #ccc">Cant.</th><th style="border-bottom:1px solid #ccc">P.Unit</th><th style="border-bottom:1px solid #ccc">Total</th></tr></thead><tbody>`;
-  for(const l of inv.lines){ html += `<tr><td style="padding:6px 0">${l.desc||''}</td><td style="text-align:center">${l.qty}</td><td style="text-align:right">${Number(l.price||0).toFixed(2)}</td><td style="text-align:right">${Number(l.qty*l.price||0).toFixed(2)}</td></tr>`; }
+  for(const l of inv.lines){ html += `<tr><td style="padding:6px 0">${escapeHtml(l.desc||'')}</td><td style="text-align:center">${Number(l.qty) || 0}</td><td style="text-align:right">${Number(l.price||0).toFixed(2)}</td><td style="text-align:right">${Number(l.qty*l.price||0).toFixed(2)}</td></tr>`; }
   html += `</tbody></table>`;
-  html += `<p style="text-align:right"><strong>Subtotal:</strong> ${Number(inv.subtotal||0).toFixed(2)} ${cfg.currency} <br><strong>IVA ${inv.vat_percent}%:</strong> ${Number(inv.vatAmount||0).toFixed(2)} ${cfg.currency} <br><strong>Total:</strong> ${Number(inv.total||0).toFixed(2)} ${cfg.currency}</p>`;
+  html += `<p style="text-align:right"><strong>Subtotal:</strong> ${Number(inv.subtotal||0).toFixed(2)} ${escapeHtml(cfg.currency)} <br><strong>IVA ${Number(inv.vat_percent) || 0}%:</strong> ${Number(inv.vatAmount||0).toFixed(2)} ${escapeHtml(cfg.currency)} <br><strong>Total:</strong> ${Number(inv.total||0).toFixed(2)} ${escapeHtml(cfg.currency)}</p>`;
   html += `</div>`;
   // use html2pdf
-  const opt = { margin: 10, filename: `${inv.number}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+  const opt = { margin: 10, filename: safeFileName(inv.number, 'factura'), image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
   const el = document.createElement('div'); el.innerHTML = html; document.body.appendChild(el);
   try{ await html2pdf().from(el).set(opt).save(); }catch(err){ showToast('Error generando PDF', 'error'); }
   el.remove();
@@ -3710,40 +3718,40 @@ async function exportBudgetPDF(budgetId){
   const sourcePart = b.fromPart ? await GenalDB.get('parts', b.fromPart) : null;
   const cfg = await getConfig(); window._lastCfg = cfg;
   const company = cfg.company || {};
-  const logoSrc = cfg.logo || window._pendingLogoDataUrl || '';
+  const logoSrc = safeImageSource(cfg.logo || window._pendingLogoDataUrl);
   let html = documentStart();
   html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">`;
   if(logoSrc){ html += `<div style="flex:0 0 160px"><img src=\"${logoSrc}\" alt=\"logo\" style=\"max-height:80px;max-width:160px;object-fit:contain\"></div>`; }
   html += `<div style="flex:1;text-align:right">`;
-  html += `<strong>${company.name||'Mi Empresa'}</strong><br>`;
+  html += `<strong>${escapeHtml(company.name||'Mi Empresa')}</strong><br>`;
   // address lines: street, postal/city/province
   const addrPartsBud = [];
   if(company.address) addrPartsBud.push(company.address);
   const locBud = [company.postal, company.city, company.province].filter(Boolean).join(' ');
   if(locBud) addrPartsBud.push(locBud);
-  if(addrPartsBud.length) html += addrPartsBud.join('<br>') + '<br>';
-  if(company.tax) html += `CIF/NIF: ${company.tax}<br>`;
-  if(company.phone) html += `Tel: ${company.phone} `;
-  if(company.email) html += `${company.email}<br>`;
+  if(addrPartsBud.length) html += addrPartsBud.map(escapeHtml).join('<br>') + '<br>';
+  if(company.tax) html += `CIF/NIF: ${escapeHtml(company.tax)}<br>`;
+  if(company.phone) html += `Tel: ${escapeHtml(company.phone)} `;
+  if(company.email) html += `${escapeHtml(company.email)}<br>`;
   html += `</div></div>`;
-  html += `<h3 style=\"margin:8px 0\">Presupuesto ${b.number}</h3>`;
+  html += `<h3 style=\"margin:8px 0\">Presupuesto ${escapeHtml(b.number)}</h3>`;
   const clientAddress = [
     client?.address,
     [client?.postalCode, client?.locality, client?.province].filter(Boolean).join(' ')
   ].filter(Boolean);
-  html += `<p><strong>Cliente:</strong> ${getClientDisplayName(client)}<br>
-    <strong>Dirección:</strong> ${client?.address || '—'}<br>
-    <strong>Localidad:</strong> ${client?.locality || '—'}<br>
-    <strong>Provincia:</strong> ${client?.province || '—'}<br>
-    <strong>Código postal:</strong> ${client?.postalCode || '—'}</p>`;
+  html += `<p><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}<br>
+    <strong>Dirección:</strong> ${escapeHtml(client?.address || '—')}<br>
+    <strong>Localidad:</strong> ${escapeHtml(client?.locality || '—')}<br>
+    <strong>Provincia:</strong> ${escapeHtml(client?.province || '—')}<br>
+    <strong>Código postal:</strong> ${escapeHtml(client?.postalCode || '—')}</p>`;
   html += `<p><strong>Fecha:</strong> ${new Date(b.createdAt).toLocaleString()}</p>`;
-  if(sourcePart?.technicianWork) html += `<h3>Trabajos realizados</h3><p style="white-space:pre-wrap">${sourcePart.technicianWork}</p>`;
+  if(sourcePart?.technicianWork) html += `<h3>Trabajos realizados</h3><p style="white-space:pre-wrap">${escapeHtml(sourcePart.technicianWork)}</p>`;
   html += `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Descripción</th><th style="border-bottom:1px solid #ccc">Cant.</th><th style="border-bottom:1px solid #ccc">P.Unit</th><th style="border-bottom:1px solid #ccc">Total</th></tr></thead><tbody>`;
-  for(const l of b.lines){ html += `<tr><td style="padding:6px 0">${l.desc||''}</td><td style="text-align:center">${l.qty}</td><td style="text-align:right">${Number(l.price||0).toFixed(2)}</td><td style="text-align:right">${Number(l.qty*l.price||0).toFixed(2)}</td></tr>`; }
+  for(const l of b.lines){ html += `<tr><td style="padding:6px 0">${escapeHtml(l.desc||'')}</td><td style="text-align:center">${Number(l.qty) || 0}</td><td style="text-align:right">${Number(l.price||0).toFixed(2)}</td><td style="text-align:right">${Number(l.qty*l.price||0).toFixed(2)}</td></tr>`; }
   html += `</tbody></table>`;
-  html += `<p style="text-align:right"><strong>Subtotal:</strong> ${Number(b.subtotal||0).toFixed(2)} ${cfg.currency} <br><strong>IVA ${b.vat_percent}%:</strong> ${Number(b.vatAmount||0).toFixed(2)} ${cfg.currency} <br><strong>Total:</strong> ${Number(b.total||0).toFixed(2)} ${cfg.currency}</p>`;
+  html += `<p style="text-align:right"><strong>Subtotal:</strong> ${Number(b.subtotal||0).toFixed(2)} ${escapeHtml(cfg.currency)} <br><strong>IVA ${Number(b.vat_percent) || 0}%:</strong> ${Number(b.vatAmount||0).toFixed(2)} ${escapeHtml(cfg.currency)} <br><strong>Total:</strong> ${Number(b.total||0).toFixed(2)} ${escapeHtml(cfg.currency)}</p>`;
   html += `</div>`;
-  const opt = { margin: 10, filename: `${b.number}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+  const opt = { margin: 10, filename: safeFileName(b.number, 'presupuesto'), image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
   const el = document.createElement('div'); el.innerHTML = html; document.body.appendChild(el);
   try{ await html2pdf().from(el).set(opt).save(); }catch(err){ showToast('Error generando PDF', 'error'); }
   el.remove();
@@ -3802,43 +3810,43 @@ async function previewBudget(budgetId){
   const linkedInvoice = (await GenalDB.getAll('invoices')).find(invoice=>Number(invoice.fromBudget) === Number(budgetId));
   const cfg = await getConfig();
   const company = cfg.company || {};
-  const logoSrc = cfg.logo || window._pendingLogoDataUrl || '';
+  const logoSrc = safeImageSource(cfg.logo || window._pendingLogoDataUrl);
   let html = documentStart();
   html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">`;
   if(logoSrc){ html += `<div style="flex:0 0 160px"><img src=\"${logoSrc}\" alt=\"logo\" style=\"max-height:80px;max-width:160px;object-fit:contain\"></div>`; }
   html += `<div style="flex:1;text-align:right">`;
-  html += `<strong>${company.name||'Mi Empresa'}</strong><br>`;
+  html += `<strong>${escapeHtml(company.name||'Mi Empresa')}</strong><br>`;
   const addrParts = [];
   if(company.address) addrParts.push(company.address);
   const loc = [company.postal, company.city, company.province].filter(Boolean).join(' ');
   if(loc) addrParts.push(loc);
-  if(addrParts.length) html += addrParts.join('<br>') + '<br>';
-  if(company.tax) html += `CIF/NIF: ${company.tax}<br>`;
-  if(company.phone) html += `Tel: ${company.phone} `;
-  if(company.email) html += `${company.email}<br>`;
+  if(addrParts.length) html += addrParts.map(escapeHtml).join('<br>') + '<br>';
+  if(company.tax) html += `CIF/NIF: ${escapeHtml(company.tax)}<br>`;
+  if(company.phone) html += `Tel: ${escapeHtml(company.phone)} `;
+  if(company.email) html += `${escapeHtml(company.email)}<br>`;
   html += `</div></div>`;
-  html += `<h3 style=\"margin:8px 0\">Presupuesto ${b.number}</h3>`;
+  html += `<h3 style=\"margin:8px 0\">Presupuesto ${escapeHtml(b.number)}</h3>`;
   const clientAddress = [
     client?.address,
     [client?.postalCode, client?.locality, client?.province].filter(Boolean).join(' ')
   ].filter(Boolean);
-  html += `<p><strong>Cliente:</strong> ${getClientDisplayName(client)}<br>
-    <strong>Dirección:</strong> ${client?.address || '—'}<br>
-    <strong>Localidad:</strong> ${client?.locality || '—'}<br>
-    <strong>Provincia:</strong> ${client?.province || '—'}<br>
-    <strong>Código postal:</strong> ${client?.postalCode || '—'}</p>`;
+  html += `<p><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}<br>
+    <strong>Dirección:</strong> ${escapeHtml(client?.address || '—')}<br>
+    <strong>Localidad:</strong> ${escapeHtml(client?.locality || '—')}<br>
+    <strong>Provincia:</strong> ${escapeHtml(client?.province || '—')}<br>
+    <strong>Código postal:</strong> ${escapeHtml(client?.postalCode || '—')}</p>`;
   html += `<p><strong>Fecha:</strong> ${new Date(b.createdAt).toLocaleString()}</p>`;
-  if(sourcePart?.technicianWork) html += `<h3>Trabajos realizados</h3><p style="white-space:pre-wrap">${sourcePart.technicianWork}</p>`;
+  if(sourcePart?.technicianWork) html += `<h3>Trabajos realizados</h3><p style="white-space:pre-wrap">${escapeHtml(sourcePart.technicianWork)}</p>`;
   html += `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Descripción</th><th style="border-bottom:1px solid #ccc">Cant.</th><th style="border-bottom:1px solid #ccc">P.Unit</th><th style="border-bottom:1px solid #ccc">Total</th></tr></thead><tbody>`;
-  for(const l of b.lines){ html += `<tr><td style="padding:6px 0">${l.desc||''}</td><td style="text-align:center">${l.qty}</td><td style="text-align:right">${Number(l.price||0).toFixed(2)}</td><td style="text-align:right">${Number(l.qty*l.price||0).toFixed(2)}</td></tr>`; }
+  for(const l of b.lines){ html += `<tr><td style="padding:6px 0">${escapeHtml(l.desc||'')}</td><td style="text-align:center">${Number(l.qty) || 0}</td><td style="text-align:right">${Number(l.price||0).toFixed(2)}</td><td style="text-align:right">${Number(l.qty*l.price||0).toFixed(2)}</td></tr>`; }
   html += `</tbody></table>`;
-  html += `<p style="text-align:right"><strong>Subtotal:</strong> ${Number(b.subtotal||0).toFixed(2)} ${cfg.currency} <br><strong>IVA ${b.vat_percent}%:</strong> ${Number(b.vatAmount||0).toFixed(2)} ${cfg.currency} <br><strong>Total:</strong> ${Number(b.total||0).toFixed(2)} ${cfg.currency}</p>`;
+  html += `<p style="text-align:right"><strong>Subtotal:</strong> ${Number(b.subtotal||0).toFixed(2)} ${escapeHtml(cfg.currency)} <br><strong>IVA ${Number(b.vat_percent) || 0}%:</strong> ${Number(b.vatAmount||0).toFixed(2)} ${escapeHtml(cfg.currency)} <br><strong>Total:</strong> ${Number(b.total||0).toFixed(2)} ${escapeHtml(cfg.currency)}</p>`;
   html += `</div>`;
   const budgetActions = [
     {label:'Modificar presupuesto', className:'edit-action', handler:()=>openBudgetFromBudgetModal(budgetId)}
   ];
   if(!linkedInvoice) budgetActions.push({label:'Crear factura', className:'invoice-action', handler:()=>createInvoiceFromBudget(budgetId)});
-  showPreview(html, `${b.number}.pdf`, budgetActions);
+  showPreview(html, safeFileName(b.number, 'presupuesto'), budgetActions);
   document.querySelectorAll('#preview-body [data-open-invoice]').forEach(button=>button.addEventListener('click', async ()=>{
     document.getElementById('preview-modal')?.classList.remove('show');
     await openRecordPreview('invoices', Number(button.dataset.openInvoice));
@@ -3855,36 +3863,36 @@ async function previewInvoice(invoiceId){
   const client = await GenalDB.get('clients', inv.clientId);
   const cfg = await getConfig();
   const company = cfg.company || {};
-  const logoSrc = cfg.logo || window._pendingLogoDataUrl || '';
+  const logoSrc = safeImageSource(cfg.logo || window._pendingLogoDataUrl);
   let html = documentStart();
   html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">`;
   if(logoSrc){ html += `<div style="flex:0 0 160px"><img src=\"${logoSrc}\" alt=\"logo\" style=\"max-height:80px;max-width:160px;object-fit:contain\"></div>`; }
   html += `<div style="flex:1;text-align:right">`;
-  html += `<strong>${company.name||'Mi Empresa'}</strong><br>`;
+  html += `<strong>${escapeHtml(company.name||'Mi Empresa')}</strong><br>`;
   const addrPartsI = [];
   if(company.address) addrPartsI.push(company.address);
   const locI = [company.postal, company.city, company.province].filter(Boolean).join(' ');
   if(locI) addrPartsI.push(locI);
-  if(addrPartsI.length) html += addrPartsI.join('<br>') + '<br>';
-  if(company.tax) html += `CIF/NIF: ${company.tax}<br>`;
-  if(company.phone) html += `Tel: ${company.phone} `;
-  if(company.email) html += `${company.email}<br>`;
+  if(addrPartsI.length) html += addrPartsI.map(escapeHtml).join('<br>') + '<br>';
+  if(company.tax) html += `CIF/NIF: ${escapeHtml(company.tax)}<br>`;
+  if(company.phone) html += `Tel: ${escapeHtml(company.phone)} `;
+  if(company.email) html += `${escapeHtml(company.email)}<br>`;
   html += `</div></div>`;
-  html += `<h3 style=\"margin:8px 0\">Factura ${inv.number}</h3>`;
-  html += `<p><strong>Cliente:</strong> ${getClientDisplayName(client)}<br>
-    <strong>Dirección:</strong> ${client?.address || '—'}<br>
-    <strong>Localidad:</strong> ${client?.locality || '—'}<br>
-    <strong>Provincia:</strong> ${client?.province || '—'}<br>
-    <strong>Código postal:</strong> ${client?.postalCode || '—'}<br>
-    <strong>DNI / NIF:</strong> ${client?.dni || '—'}<br>
-    <strong>Teléfono:</strong> ${client?.phone || client?.contact || '—'}${client?.email ? `<br><strong>Email:</strong> ${client.email}` : ''}</p>`;
+  html += `<h3 style=\"margin:8px 0\">Factura ${escapeHtml(inv.number)}</h3>`;
+  html += `<p><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}<br>
+    <strong>Dirección:</strong> ${escapeHtml(client?.address || '—')}<br>
+    <strong>Localidad:</strong> ${escapeHtml(client?.locality || '—')}<br>
+    <strong>Provincia:</strong> ${escapeHtml(client?.province || '—')}<br>
+    <strong>Código postal:</strong> ${escapeHtml(client?.postalCode || '—')}<br>
+    <strong>DNI / NIF:</strong> ${escapeHtml(client?.dni || '—')}<br>
+    <strong>Teléfono:</strong> ${escapeHtml(client?.phone || client?.contact || '—')}${client?.email ? `<br><strong>Email:</strong> ${escapeHtml(client.email)}` : ''}</p>`;
   html += `<p><strong>Fecha:</strong> ${new Date(inv.createdAt).toLocaleString()}</p>`;
   html += `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Descripción</th><th style="border-bottom:1px solid #ccc">Cant.</th><th style="border-bottom:1px solid #ccc">P.Unit</th><th style="border-bottom:1px solid #ccc">Total</th></tr></thead><tbody>`;
-  for(const l of inv.lines){ html += `<tr><td style="padding:6px 0">${l.desc||''}</td><td style="text-align:center">${l.qty}</td><td style="text-align:right">${Number(l.price||0).toFixed(2)}</td><td style="text-align:right">${Number(l.qty*l.price||0).toFixed(2)}</td></tr>`; }
+  for(const l of inv.lines){ html += `<tr><td style="padding:6px 0">${escapeHtml(l.desc||'')}</td><td style="text-align:center">${Number(l.qty) || 0}</td><td style="text-align:right">${Number(l.price||0).toFixed(2)}</td><td style="text-align:right">${Number(l.qty*l.price||0).toFixed(2)}</td></tr>`; }
   html += `</tbody></table>`;
-  html += `<p style="text-align:right"><strong>Subtotal:</strong> ${Number(inv.subtotal||0).toFixed(2)} ${cfg.currency} <br><strong>IVA ${inv.vat_percent}%:</strong> ${Number(inv.vatAmount||0).toFixed(2)} ${cfg.currency} <br><strong>Total:</strong> ${Number(inv.total||0).toFixed(2)} ${cfg.currency}</p>`;
+  html += `<p style="text-align:right"><strong>Subtotal:</strong> ${Number(inv.subtotal||0).toFixed(2)} ${escapeHtml(cfg.currency)} <br><strong>IVA ${Number(inv.vat_percent) || 0}%:</strong> ${Number(inv.vatAmount||0).toFixed(2)} ${escapeHtml(cfg.currency)} <br><strong>Total:</strong> ${Number(inv.total||0).toFixed(2)} ${escapeHtml(cfg.currency)}</p>`;
   html += `</div>`;
-  showPreview(html, `${inv.number}.pdf`, [
+  showPreview(html, safeFileName(inv.number, 'factura'), [
     {label: inv.issued ? 'Desmarcar emitida' : 'Marcar emitida', handler:async ()=>{
       if(inv.issued && !await showConfirmModal(`¿Quieres desmarcar como emitida la factura ${inv.number || ''}?`, 'Desmarcar emitida')) return;
       inv.issued = !inv.issued;
