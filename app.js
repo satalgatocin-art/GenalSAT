@@ -19,12 +19,34 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 window._listSort = window._listSort || {parts:'desc', budgets:'asc', invoices:'asc', clients:'asc'};
 window._listPages = window._listPages || {};
 const LIST_PAGE_SIZE = 50;
+let html2pdfPromise = null;
+let movesListCache = null;
 function debounce(callback, delay=150){
   let timer;
   return (...args)=>{
     clearTimeout(timer);
     timer = setTimeout(()=>callback(...args), delay);
   };
+}
+function loadHtml2Pdf(){
+  if(typeof window.html2pdf === 'function') return Promise.resolve(window.html2pdf);
+  if(html2pdfPromise) return html2pdfPromise;
+  html2pdfPromise = new Promise((resolve,reject)=>{
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js';
+    script.integrity = 'sha384-rxnxciqQhuYzyrQLukvH8WzU2hnbCOn4CgbxhHHpyZmkzBWSiJREP6wHiOD1fVuz';
+    script.crossOrigin = 'anonymous';
+    script.onload = ()=>{
+      if(typeof window.html2pdf === 'function') resolve(window.html2pdf);
+      else reject(new Error('La biblioteca de exportación PDF no está disponible.'));
+    };
+    script.onerror = ()=>reject(new Error('No se pudo cargar la biblioteca de exportación PDF.'));
+    document.head.appendChild(script);
+  }).catch(error=>{
+    html2pdfPromise = null;
+    throw error;
+  });
+  return html2pdfPromise;
 }
 function escapeHtml(value){
   return String(value ?? '').replace(/[&<>"']/g, character=>({
@@ -76,10 +98,21 @@ function appendPagination(wrap, key, total, render){
   const createPager = ()=>{
     const pager = document.createElement('div');
     pager.className = 'pagination';
-    const pageButtons = Array.from({length: pages}, (_, index)=>{
-      const pageNumber = index + 1;
-      return `<button class="btn secondary${pageNumber === page ? ' active-page' : ''}" data-page-number="${pageNumber}" aria-label="Ir a la página ${pageNumber}">${pageNumber}</button>`;
-    }).join('');
+    const start = Math.max(1, Math.min(page - 2, pages - 4));
+    const end = Math.min(pages, start + 4);
+    const pageItems = [];
+    if(start > 1){
+      pageItems.push('<button class="btn secondary" data-page-number="1" aria-label="Ir a la página 1">1</button>');
+      if(start > 2) pageItems.push('<span aria-hidden="true">&hellip;</span>');
+    }
+    for(let pageNumber = start; pageNumber <= end; pageNumber++){
+      pageItems.push(`<button class="btn secondary${pageNumber === page ? ' active-page' : ''}" data-page-number="${pageNumber}" aria-label="Ir a la página ${pageNumber}">${pageNumber}</button>`);
+    }
+    if(end < pages){
+      if(end < pages - 1) pageItems.push('<span aria-hidden="true">&hellip;</span>');
+      pageItems.push(`<button class="btn secondary" data-page-number="${pages}" aria-label="Ir a la página ${pages}">${pages}</button>`);
+    }
+    const pageButtons = pageItems.join('');
     pager.innerHTML = `<button class="btn secondary" data-page="prev" ${page === 1 ? 'disabled' : ''}>Anterior</button><span class="pagination-pages">${pageButtons}</span><button class="btn secondary" data-page="next" ${page === pages ? 'disabled' : ''}>Siguiente</button><span>Página ${page} de ${pages}</span>`;
     pager.querySelector('[data-page="prev"]').onclick = ()=>{ window._listPages[key] = page - 1; render(); };
     pager.querySelector('[data-page="next"]').onclick = ()=>{ window._listPages[key] = page + 1; render(); };
@@ -278,12 +311,14 @@ async function showView(view){
     moveModal.addEventListener('click', event=>{ if(event.target === moveModal) moveModal.classList.remove('show'); });
     document.getElementById('apply-move').addEventListener('click', applyMoveHandler);
     document.getElementById('inventory-search').addEventListener('input', renderStockList);
+    const renderMovesListFromCache = debounce(()=>renderMovesList(false));
     ['filter-move-date','filter-move-code','filter-move-product','filter-move-product-type','filter-move-qty','filter-move-source','filter-move-type']
       .forEach(id=>{
-        document.getElementById(id).addEventListener('input', renderMovesList);
-        document.getElementById(id).addEventListener('change', renderMovesList);
+        const filter = document.getElementById(id);
+        filter.addEventListener('input', renderMovesListFromCache);
+        filter.addEventListener('change', renderMovesListFromCache);
       });
-    document.querySelector('[data-filter-target=".moves-filters"]')?.addEventListener('click', event=>openMobileFilter(event.currentTarget,'.moves-filters','Filtrar movimientos',renderMovesList));
+    document.querySelector('[data-filter-target=".moves-filters"]')?.addEventListener('click', event=>openMobileFilter(event.currentTarget,'.moves-filters','Filtrar movimientos',()=>renderMovesList(false)));
     await populateProductsForMoves();
     renderStockList();
     renderMovesList();
@@ -963,13 +998,23 @@ async function applyMoveHandler(){
   document.getElementById('inventory-move-modal')?.classList.remove('show');
 }
 
-async function renderMovesList(){
-  const moves = await GenalDB.getAll('moves');
-  const products = await GenalDB.getAll('products');
-  const productsById = new Map(products.map(product=>[Number(product.id), product]));
-  const wrap = document.getElementById('moves-list'); if(!wrap) return; wrap.innerHTML='';
+async function renderMovesList(refreshData=true){
+  const wrap = document.getElementById('moves-list'); if(!wrap) return;
   const renderToken = (window._movesRenderToken || 0) + 1;
   window._movesRenderToken = renderToken;
+  if(refreshData || !movesListCache){
+    const [moves, products] = await Promise.all([
+      GenalDB.getAll('moves'),
+      GenalDB.getAll('products')
+    ]);
+    if(renderToken !== window._movesRenderToken || !document.getElementById('moves-list')) return;
+    movesListCache = {
+      moves,
+      productsById:new Map(products.map(product=>[Number(product.id), product]))
+    };
+  }
+  const {moves, productsById} = movesListCache;
+  wrap.innerHTML='';
   const dateFilter = document.getElementById('filter-move-date')?.value || '';
   const codeFilter = (document.getElementById('filter-move-code')?.value || '').trim().toLocaleLowerCase();
   const productFilter = (document.getElementById('filter-move-product')?.value || '').trim().toLocaleLowerCase();
@@ -1002,7 +1047,7 @@ async function renderMovesList(){
   const sortedMoves = filtered.slice().sort((a,b)=>new Date(b.date)-new Date(a.date));
   const pageData = pagedItems(sortedMoves, 'moves');
   for(const m of pageData.items){
-    const prod = await GenalDB.get('products', m.productId);
+    const prod = productsById.get(Number(m.productId));
     const tr = document.createElement('tr');
     const productCode = prod?.code || m.productCode || '';
     const productText = prod?.name || m.productName || '';
@@ -1021,7 +1066,7 @@ async function renderMovesList(){
   }
   if(renderToken !== window._movesRenderToken || !document.getElementById('moves-list')) return;
   table.appendChild(tbody); wrap.appendChild(table);
-  appendPagination(wrap, 'moves', sortedMoves.length, renderMovesList);
+  appendPagination(wrap, 'moves', sortedMoves.length, ()=>renderMovesList(false));
 }
 
 async function addPartStockMove(part, line, type, qty, reason){
@@ -2764,7 +2809,7 @@ async function exportPartPDF(partId){
   if(!report) return;
   const opt = { margin: 10, filename: safeFileName(report.part.number, 'informe'), image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
   const el = document.createElement('div'); el.innerHTML = report.html; document.body.appendChild(el);
-  try{ await html2pdf().from(el).set(opt).save(); }catch(err){ showToast('Error generando PDF del informe', 'error'); }
+  try{ const html2pdf = await loadHtml2Pdf(); await html2pdf().from(el).set(opt).save(); }catch(err){ showToast('Error generando PDF del informe', 'error'); }
   el.remove();
 }
 
@@ -3770,7 +3815,7 @@ async function exportInvoicePDF(invoiceId){
   // use html2pdf
   const opt = { margin: 10, filename: safeFileName(inv.number, 'factura'), image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
   const el = document.createElement('div'); el.innerHTML = html; document.body.appendChild(el);
-  try{ await html2pdf().from(el).set(opt).save(); }catch(err){ showToast('Error generando PDF', 'error'); }
+  try{ const html2pdf = await loadHtml2Pdf(); await html2pdf().from(el).set(opt).save(); }catch(err){ showToast('Error generando PDF', 'error'); }
   el.remove();
 }
 
@@ -3816,7 +3861,7 @@ async function exportBudgetPDF(budgetId){
   html += `</div>`;
   const opt = { margin: 10, filename: safeFileName(b.number, 'presupuesto'), image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
   const el = document.createElement('div'); el.innerHTML = html; document.body.appendChild(el);
-  try{ await html2pdf().from(el).set(opt).save(); }catch(err){ showToast('Error generando PDF', 'error'); }
+  try{ const html2pdf = await loadHtml2Pdf(); await html2pdf().from(el).set(opt).save(); }catch(err){ showToast('Error generando PDF', 'error'); }
   el.remove();
 }
 
@@ -3855,6 +3900,7 @@ function showPreview(html, filename, actions=[]){
   modal.querySelector('#preview-close').onclick = ()=> modal.classList.remove('show');
   modal.querySelector('#preview-export').onclick = async ()=>{
     try{
+      const html2pdf = await loadHtml2Pdf();
       await html2pdf().from(body).set({ margin:10, filename }).save();
     }catch(e){ showToast('Error generando PDF', 'error'); }
   };

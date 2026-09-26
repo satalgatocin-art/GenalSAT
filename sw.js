@@ -1,4 +1,4 @@
-const CACHE_NAME = 'genalsat-shell-v9';
+const CACHE_NAME = 'genalsat-shell-v10';
 const APP_SHELL = [
   './',
   './index.html',
@@ -28,13 +28,14 @@ self.addEventListener('fetch', event=>{
   if(event.request.url.startsWith('blob:') || event.request.url.startsWith('data:')) return;
   const requestUrl = new URL(event.request.url);
   if(requestUrl.origin === self.location.origin){
-    event.respondWith(
-      fetch(event.request).then(response=>{
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache=>cache.put(event.request, copy));
-        return response;
-      }).catch(()=>caches.match(event.request))
-    );
+    const networkResponse = fetch(event.request);
+    event.waitUntil(networkResponse.then(response=>{
+      if(!response.ok) return;
+      return caches.open(CACHE_NAME).then(cache=>cache.put(event.request, response.clone()));
+    }).catch(error=>{
+      console.warn('No se pudo actualizar la caché de la aplicación.', error);
+    }));
+    event.respondWith(networkResponse.catch(()=>caches.match(event.request)));
     return;
   }
   // Never cache third-party or authenticated responses. Drive media responses

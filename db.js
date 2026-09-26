@@ -2,7 +2,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app-check.js';
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, reauthenticateWithPopup, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
-import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, limit, query, setDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 (function(window){
   const firebaseConfig = {
@@ -184,18 +184,32 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     if(legacyMigrationChecked) return;
     legacyMigrationChecked = true;
     const stores = ['products','clients','parts','budgets','invoices','settings','moves','appointments'];
-    const cloudCounts = await Promise.all(stores.map(async store=>(await getDocs(storeRef(store))).size));
+    const cloudCounts = await Promise.all(stores.map(async store=>
+      (await getDocs(query(storeRef(store), limit(1)))).size
+    ));
     if(cloudCounts.some(count=>count > 0)) return;
-    const legacyData = {};
-    for(const store of stores) legacyData[store] = await readLegacyStore(store);
+    const legacyEntries = await Promise.all(stores.map(async store=>[store, await readLegacyStore(store)]));
+    const legacyData = Object.fromEntries(legacyEntries);
     const hasLegacyData = stores.some(store=>legacyData[store].length);
     if(!hasLegacyData) return;
+    let batch = writeBatch(firestore);
+    let batchSize = 0;
     for(const store of stores){
       for(const record of legacyData[store]){
-        if(store === 'settings') await put(store, record);
-        else await add(store, record);
+        const cleanRecord = cleanData({...record});
+        const key = store === 'settings' ? cleanRecord.key : (cleanRecord.id ?? createId());
+        if(key === undefined || key === null) throw new Error(`El registro de ${store} no tiene identificador.`);
+        if(store !== 'settings') cleanRecord.id = key;
+        batch.set(doc(storeRef(store), String(key)), cleanRecord);
+        batchSize++;
+        if(batchSize === 450){
+          await batch.commit();
+          batch = writeBatch(firestore);
+          batchSize = 0;
+        }
       }
     }
+    if(batchSize) await batch.commit();
   }
 
   async function add(store, value){
