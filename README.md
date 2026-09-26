@@ -15,12 +15,12 @@ Configuración de Firebase
 
 Configuración de Google Drive
 -----------------------------
-Las fotos y vídeos adjuntos se suben a Google Drive dentro de la carpeta `WEB`; Firestore guarda únicamente el identificador, nombre, tipo y enlace del archivo. La aplicación conserva el token de Drive en memoria durante la sesión para no volver a pedir la cuenta en cada subida o eliminación.
+Las fotos y vídeos adjuntos se suben a Google Drive dentro de la carpeta `WEB`; Firestore guarda únicamente el identificador, nombre, tipo y enlace del archivo. El token de Drive se conserva solo en memoria y, al caducar, Google Identity Services intenta renovarlo silenciosamente con el permiso ya concedido. No se guarda ningún token de renovación en el navegador. Google puede requerir autorización manual si se revoca el permiso, caduca la sesión de Google o el navegador impide la renovación silenciosa.
 1. En Google Cloud Console, selecciona el proyecto `genalsat-13` y activa **Google Drive API** en **APIs y servicios > Biblioteca**.
 2. En **APIs y servicios > Pantalla de consentimiento de OAuth**, configura la aplicación y añade tu cuenta como usuario de prueba si la aplicación está en modo de pruebas.
-3. En **APIs y servicios > Credenciales**, abre el cliente OAuth web cuyo ID termina en `apps.googleusercontent.com`.
+3. En **APIs y servicios > Credenciales**, abre el cliente OAuth web cuyo ID termina en `apps.googleusercontent.com`. Ese ID público está configurado en `db.js` para la renovación silenciosa; no incluyas secretos de cliente en el código del navegador.
 4. Añade como **Orígenes de JavaScript autorizados** el origen de GitHub Pages, por ejemplo `https://TU_USUARIO.github.io`, sin la ruta del repositorio.
-5. La aplicación solicita el alcance reducido `https://www.googleapis.com/auth/drive.file`. Vuelve a cargar la aplicación, inicia sesión con Google y concede este permiso una sola vez. Este alcance permite gestionar los archivos creados por la aplicación sin conceder acceso completo a todo Drive.
+5. La aplicación solicita el alcance reducido `https://www.googleapis.com/auth/drive.file`. Inicia sesión con Google y concede este permiso la primera vez. Este alcance permite gestionar los archivos creados por la aplicación sin conceder acceso completo a todo Drive. Cuando el token caduque, la aplicación intentará renovarlo en segundo plano; solo si Google exige interacción se volverá a abrir el flujo de autorización.
 6. Si no encuentra una carpeta llamada `WEB`, crea una automáticamente y la usa para las siguientes subidas.
 
 La aplicación usa las colecciones `users/{uid}/products`, `clients`, `parts`, `budgets`, `invoices`, `settings`, `moves` y `appointments`. Cada usuario solo puede leer y modificar sus propias colecciones según las reglas incluidas.
@@ -37,6 +37,7 @@ Seguridad y límites
 Funcionalidades incluidas en esta entrega (MVP):
 - Gestión de stock: añadir, editar cantidad, eliminar productos. La tabla incluye el tipo de producto y el buscador permite localizar por código, nombre o tipo.
 - Informes de trabajo: informes numerados de reparación con cliente, equipo (marca, modelo y número de serie), problema comunicado, trabajos realizados y piezas utilizadas. Incluyen vista previa y exportación a PDF.
+- Informes de facturación: resumen filtrable por fecha concreta o rango, con base imponible, IVA, total facturado, pendiente de cobro, coste de piezas y beneficio estimado. El beneficio resta a la base imponible los costes de las piezas de stock vinculadas al parte; prioriza los movimientos históricos y, si no existen, estima el coste con el precio medio actual del producto. Si faltan datos de coste, se indica como no disponible.
 - Clientes: pestaña independiente con buscadores separados por nombre/apellidos, DNI/NIF, teléfono y localidad. La tabla muestra también la fecha de alta. Al pulsar una fila se abre una ventana flotante con todos los datos del cliente, su fecha de alta, sus partes y presupuestos vinculados, y un botón Editar; las acciones de editar y eliminar también están disponibles en la tabla. Al pulsar un parte o presupuesto relacionado, se cambia a su pestaña correspondiente y se abre automáticamente su vista previa.
 - Ajustes: moneda (EUR por defecto), IVA por defecto (21%), datos de empresa y logo organizados en secciones desplegables.
 - Exportar/Importar JSON para copia de seguridad/restauración.

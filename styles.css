@@ -53,6 +53,20 @@ footer{padding:8px 24px;background:#fafafa;border-top:1px solid #eee}
 .parts-more-filters-toggle{flex:0 0 auto!important;width:auto!important;min-width:125px!important;white-space:nowrap}
 .parts-more-filters-toggle[aria-expanded="true"]{background:#12365f}
 .date-range-fields:not([hidden]){display:flex;gap:10px}
+.row-actions{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.financial-report-date-controls{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px}
+.financial-report-date-controls label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:.85rem;font-weight:600}
+.financial-report-date-controls input,.financial-report-date-controls select{min-height:38px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+.financial-report-range:not([hidden]){display:flex;flex-wrap:wrap;gap:12px}
+.financial-report-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin:16px 0}
+.financial-report-summary>div{display:flex;flex-direction:column;gap:7px;padding:14px;border:1px solid var(--line);border-radius:9px;background:var(--surface-soft)}
+.financial-report-summary span{color:var(--muted);font-size:.82rem}
+.financial-report-summary strong{color:#12365f;font-size:1.08rem}
+.financial-report-note{margin:0 0 12px}
+.financial-report-table-wrap{max-width:100%;overflow-x:auto}
+.financial-report-table{min-width:1050px}
+.financial-report-table tbody tr{cursor:pointer}
+.financial-report-table tbody tr:focus{outline:2px solid var(--accent);outline-offset:-2px}
 .part-card{padding:0;overflow:hidden}
 .part-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;cursor:pointer;background:#fff}
 .part-summary:hover,.part-summary:focus{background:#f5f8fc;outline:none}
@@ -162,6 +176,13 @@ footer{padding:8px 24px;background:#fafafa;border-top:1px solid #eee}
   footer{padding:8px 12px}
 }
 @media(max-width:600px){
+  .financial-report-date-controls,.financial-report-date-controls>label,.financial-report-range:not([hidden]),.financial-report-range label{width:100%}
+  .financial-report-date-controls input,.financial-report-date-controls select{width:100%}
+  .financial-report-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .financial-report-summary>div{padding:10px}
+  .financial-report-summary strong{font-size:.98rem}
+  .row-actions{gap:3px}
+  .row-actions .icon-btn{flex:0 0 38px}
   .form-row{flex-direction:column}
   header h1{font-size:1rem}
   .part-summary-main{gap:8px}
@@ -369,7 +390,7 @@ footer{padding:8px 24px;background:#fafafa;border-top:1px solid #eee}
   header h1{font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .app-tagline{display:none}
   .company-header-logo{top:5px;right:12px;max-width:108px;height:48px}
-  nav{position:fixed;z-index:1200;left:0;right:0;bottom:0;width:100%;max-width:100%;height:64px;margin:0;padding:5px 4px calc(5px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;background:#fff;border-top:1px solid #dbe2ea;box-shadow:0 -3px 14px rgba(15,23,42,.14);overflow:hidden}
+  nav{position:fixed;z-index:1200;left:0;right:0;bottom:0;width:100%;max-width:100%;height:64px;margin:0;padding:5px 4px calc(5px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:2px;background:#fff;border-top:1px solid #dbe2ea;box-shadow:0 -3px 14px rgba(15,23,42,.14);overflow:hidden}
   .nav-btn{min-width:0;height:54px;padding:4px 1px;border:0;border-radius:7px;background:transparent;color:#526173;font-size:.64rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
   .nav-btn .nav-icon{font-size:1.15rem;line-height:1}
   .nav-btn span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

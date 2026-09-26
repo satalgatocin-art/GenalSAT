@@ -21,6 +21,7 @@ window._listPages = window._listPages || {};
 const LIST_PAGE_SIZE = 50;
 let html2pdfPromise = null;
 let movesListCache = null;
+let financialReportData = null;
 function debounce(callback, delay=150){
   let timer;
   return (...args)=>{
@@ -547,6 +548,51 @@ async function showView(view){
     document.getElementById('filter-invoice-date-mode').addEventListener('change', event=>{const range=event.target.value==='range'; document.getElementById('filter-invoice-date').hidden=range; document.getElementById('filter-invoice-date-range').hidden=!range; renderInvoicesList();});
     document.querySelector('.sort-toggle[data-sort-key="invoices"]').addEventListener('click', ()=>toggleListSort('invoices'));
     renderInvoicesList();
+  }
+
+  else if(view === 'reports'){
+    const card = document.createElement('div');
+    card.className = 'card financial-reports';
+    card.innerHTML = `
+      <h2>Informes de facturación</h2>
+      <div class="financial-report-filters card">
+        <h3>Filtrar por fecha de factura</h3>
+        <div class="financial-report-date-controls">
+          <label>Periodo
+            <select id="financial-report-date-mode">
+              <option value="all">Todas las fechas</option>
+              <option value="single">Fecha concreta</option>
+              <option value="range">Rango de fechas</option>
+            </select>
+          </label>
+          <label id="financial-report-single-wrap" hidden>Fecha
+            <input id="financial-report-date" type="date">
+          </label>
+          <div id="financial-report-range-wrap" class="financial-report-range" hidden>
+            <label>Desde<input id="financial-report-date-from" type="date"></label>
+            <label>Hasta<input id="financial-report-date-to" type="date"></label>
+          </div>
+        </div>
+      </div>
+      <div class="financial-report-summary" aria-live="polite"></div>
+      <h3>Detalle de facturación</h3>
+      <p class="small financial-report-note">El beneficio se calcula sobre la base imponible, sin IVA, menos el coste de las piezas de stock. Si faltan datos para calcular un coste, se muestra «—»; cuando no hay movimientos históricos, el coste se estima con el precio medio actual del producto.</p>
+      <div class="financial-report-table-wrap"></div>
+    `;
+    container.appendChild(card);
+    app.appendChild(container);
+    financialReportData = null;
+    const mode = card.querySelector('#financial-report-date-mode');
+    const updateDateControls = ()=>{
+      const dateMode = mode.value;
+      card.querySelector('#financial-report-single-wrap').hidden = dateMode !== 'single';
+      card.querySelector('#financial-report-range-wrap').hidden = dateMode !== 'range';
+      renderFinancialReports(false);
+    };
+    mode.addEventListener('change', updateDateControls);
+    card.querySelectorAll('#financial-report-date,#financial-report-date-from,#financial-report-date-to')
+      .forEach(input=>input.addEventListener('input', debounce(()=>renderFinancialReports(false), 120)));
+    renderFinancialReports();
   }
 
   else if(view === 'clients'){
@@ -2937,7 +2983,7 @@ async function renderBudgetsList(){
     const partInfo = b.fromPart
       ? `<button class="budget-part-link" data-part-id="${Number(b.fromPart)}">${escapeHtml(partNumber)}</button>`
       : '—';
-    tr.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${Number(b.id)}" aria-label="Seleccionar ${escapeHtml(b.number)}"></td><td>${escapeHtml(b.number)}</td><td>${partInfo}</td><td>${escapeHtml(clientName)}</td><td>${createdDate.toLocaleString()}</td><td>${fmtCurrency(b.total)}</td><td>${invoiceInfo}</td><td><button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-id="${Number(b.id)}" data-action="preview">👁</button> <button class="icon-btn edit-action" title="Modificar" aria-label="Modificar" data-id="${Number(b.id)}" data-action="edit">✎</button> <button class="icon-btn pdf-action" title="Descargar PDF" aria-label="Descargar" data-id="${Number(b.id)}" data-action="pdf">🖨</button> <button class="icon-btn invoice-action" title="Crear factura" aria-label="Crear factura" data-id="${Number(b.id)}" data-action="invoice"><span>$</span></button> <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar" data-id="${Number(b.id)}" data-action="del">🗑</button></td>`;
+    tr.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${Number(b.id)}" aria-label="Seleccionar ${escapeHtml(b.number)}"></td><td>${escapeHtml(b.number)}</td><td>${partInfo}</td><td>${escapeHtml(clientName)}</td><td>${createdDate.toLocaleString()}</td><td>${fmtCurrency(b.total)}</td><td>${invoiceInfo}</td><td><div class="row-actions"><button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-id="${Number(b.id)}" data-action="preview">👁</button><button class="icon-btn edit-action" title="Modificar" aria-label="Modificar" data-id="${Number(b.id)}" data-action="edit">✎</button><button class="icon-btn pdf-action" title="Descargar PDF" aria-label="Descargar" data-id="${Number(b.id)}" data-action="pdf">🖨</button><button class="icon-btn invoice-action" title="Crear factura" aria-label="Crear factura" data-id="${Number(b.id)}" data-action="invoice"><span>$</span></button><button class="icon-btn danger" title="Eliminar" aria-label="Eliminar" data-id="${Number(b.id)}" data-action="del">🗑</button></div></td>`;
     tr.addEventListener('click', event=>{
       if(event.target.closest('button,input')) return;
       previewBudget(b.id);
@@ -3002,6 +3048,161 @@ async function renderBudgetsList(){
       for(const id of [...wrap.querySelectorAll('.row-select:checked')].map(input=>Number(input.dataset.rowId))) await exportBudgetPDF(id);
     };
   }
+}
+
+async function renderFinancialReports(refreshData=true){
+  const view = document.querySelector('.financial-reports');
+  if(!view) return;
+  if(refreshData || !financialReportData){
+    let invoices, clients, budgets, parts, moves, products, config;
+    try{
+      [invoices, clients, budgets, parts, moves, products, config] = await Promise.all([
+        GenalDB.getAll('invoices'),
+        GenalDB.getAll('clients'),
+        GenalDB.getAll('budgets'),
+        GenalDB.getAll('parts'),
+        GenalDB.getAll('moves'),
+        GenalDB.getAll('products'),
+        getConfig()
+      ]);
+    }catch(error){
+      console.error('No se pudo cargar el informe de facturación.', error);
+      view.querySelector('.financial-report-summary').innerHTML = '<p class="small">No se pudo cargar la información de facturación. Inténtalo de nuevo.</p>';
+      showToast('No se pudo cargar el informe de facturación.', 'error');
+      return;
+    }
+    if(!document.querySelector('.financial-reports')) return;
+    window._lastCfg = config;
+    financialReportData = {
+      invoices,
+      clientsById:new Map(clients.map(client=>[String(client.id), client])),
+      budgetsById:new Map(budgets.map(budget=>[String(budget.id), budget])),
+      partsById:new Map(parts.map(part=>[String(part.id), part])),
+      productsById:new Map(products.map(product=>[String(product.id), product])),
+      movesByPartId:new Map()
+    };
+    for(const move of moves){
+      if(move.source !== 'part' || move.partId == null) continue;
+      const partId = String(move.partId);
+      if(!financialReportData.movesByPartId.has(partId)) financialReportData.movesByPartId.set(partId, []);
+      financialReportData.movesByPartId.get(partId).push(move);
+    }
+  }
+
+  const {invoices, clientsById, budgetsById, partsById, productsById, movesByPartId} = financialReportData;
+  const dateMode = view.querySelector('#financial-report-date-mode').value;
+  const date = view.querySelector('#financial-report-date').value;
+  const dateFrom = view.querySelector('#financial-report-date-from').value;
+  const dateTo = view.querySelector('#financial-report-date-to').value;
+  const invoiceRows = invoices.map(invoice=>{
+    const createdAt = new Date(invoice.createdAt);
+    const invoiceDate = Number.isNaN(createdAt.getTime()) ? '' : createdAt.toISOString().slice(0,10);
+    const budget = invoice.fromBudget ? budgetsById.get(String(invoice.fromBudget)) : null;
+    const partId = invoice.fromPart ?? budget?.fromPart;
+    const part = partId != null ? partsById.get(String(partId)) : null;
+    const movesForPart = part ? movesByPartId.get(String(part.id)) || [] : [];
+    let cost = 0;
+    let costKnown = true;
+    let costSource = 'Sin piezas de stock';
+    if(part){
+      if(movesForPart.length){
+        cost = movesForPart.reduce((sum, move)=>{
+          const moveQty = Number(move.qty);
+          const unitCost = Number(move.unitPrice);
+          if(!Number.isFinite(moveQty) || !Number.isFinite(unitCost)) costKnown = false;
+          const moveCost = (Number.isFinite(moveQty) ? moveQty : 0) * (Number.isFinite(unitCost) ? unitCost : 0);
+          return sum + (move.partAction === 'devuelto' ? -moveCost : moveCost);
+        }, 0);
+        costSource = costKnown ? 'Movimientos históricos' : 'Coste histórico incompleto';
+      }else{
+        const stockPieces = (part.pieces || part.lines || []).filter(line=>line.productId && line.deductStock !== false);
+        cost = stockPieces.reduce((sum, line)=>{
+          const product = productsById.get(String(line.productId));
+          const quantity = Number(line.qty);
+          const unitCost = Number(product?.price);
+          if(!product || !Number.isFinite(quantity) || !Number.isFinite(unitCost)) costKnown = false;
+          return sum + (Number.isFinite(quantity) ? quantity : 0) * (Number.isFinite(unitCost) ? unitCost : 0);
+        }, 0);
+        costSource = !costKnown ? 'Coste no disponible' : stockPieces.length ? 'Estimado: coste medio actual' : 'Sin piezas de stock';
+      }
+    }
+    const subtotal = Number.isFinite(Number(invoice.subtotal))
+      ? Number(invoice.subtotal)
+      : (invoice.lines || []).reduce((sum, line)=>sum + Number(line.qty || 0) * Number(line.price || 0), 0);
+    const total = Number.isFinite(Number(invoice.total))
+      ? Number(invoice.total)
+      : subtotal + Number(invoice.vatAmount || 0);
+    const vat = Number.isFinite(Number(invoice.vatAmount)) ? Number(invoice.vatAmount) : total - subtotal;
+    return {
+      invoice,
+      clientName:getClientDisplayName(clientsById.get(String(invoice.clientId))),
+      createdAt,
+      invoiceDate,
+      budgetNumber:invoice.budgetNumber || budget?.number || '',
+      partNumber:invoice.partNumber || part?.number || '',
+      subtotal,
+      vat,
+      total,
+      cost,
+      costKnown,
+      profit:costKnown ? subtotal - cost : null,
+      costSource
+    };
+  }).filter(row=>{
+    if(dateMode === 'single' && date && row.invoiceDate !== date) return false;
+    if(dateMode === 'range' && row.invoiceDate
+      && ((dateFrom && row.invoiceDate < dateFrom) || (dateTo && row.invoiceDate > dateTo))) return false;
+    if(dateMode === 'range' && !row.invoiceDate && (dateFrom || dateTo)) return false;
+    return true;
+  }).sort((a,b)=>b.createdAt - a.createdAt);
+
+  const total = invoiceRows.reduce((sum,row)=>sum + row.total,0);
+  const subtotal = invoiceRows.reduce((sum,row)=>sum + row.subtotal,0);
+  const vat = invoiceRows.reduce((sum,row)=>sum + row.vat,0);
+  const hasCompleteCosts = invoiceRows.every(row=>row.costKnown);
+  const cost = hasCompleteCosts ? invoiceRows.reduce((sum,row)=>sum + row.cost,0) : null;
+  const profit = hasCompleteCosts ? subtotal - cost : null;
+  const pending = invoiceRows.filter(row=>!row.invoice.paid).reduce((sum,row)=>sum + row.total,0);
+  view.querySelector('.financial-report-summary').innerHTML = `
+    <div><span>Facturado (con IVA)</span><strong>${fmtCurrency(total)}</strong></div>
+    <div><span>Base imponible</span><strong>${fmtCurrency(subtotal)}</strong></div>
+    <div><span>IVA</span><strong>${fmtCurrency(vat)}</strong></div>
+    <div><span>Coste de piezas</span><strong>${cost === null ? '—' : fmtCurrency(cost)}</strong></div>
+    <div><span>Beneficio estimado</span><strong>${profit === null ? '—' : fmtCurrency(profit)}</strong></div>
+    <div><span>Pendiente de cobro</span><strong>${fmtCurrency(pending)}</strong></div>
+  `;
+  const tableWrap = view.querySelector('.financial-report-table-wrap');
+  if(!invoiceRows.length){
+    tableWrap.innerHTML = '<p class="small">No hay facturas para el periodo seleccionado.</p>';
+    return;
+  }
+  const table = document.createElement('table');
+  table.className = 'table financial-report-table';
+  table.innerHTML = `<thead><tr><th>Factura</th><th>Fecha</th><th>Cliente</th><th>Presupuesto</th><th>Parte</th><th>Base imponible</th><th>IVA</th><th>Total</th><th>Coste piezas</th><th>Beneficio</th><th>Estado</th></tr></thead>`;
+  const tbody = document.createElement('tbody');
+  for(const row of invoiceRows){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(row.invoice.number || '—')}</td>
+      <td>${Number.isNaN(row.createdAt.getTime()) ? '—' : escapeHtml(row.createdAt.toLocaleDateString())}</td>
+      <td>${escapeHtml(row.clientName)}</td>
+      <td>${escapeHtml(row.budgetNumber || '—')}</td>
+      <td>${escapeHtml(row.partNumber || '—')}</td>
+      <td>${fmtCurrency(row.subtotal)}</td><td>${fmtCurrency(row.vat)}</td><td>${fmtCurrency(row.total)}</td>
+      <td title="${escapeHtml(row.costSource)}">${row.costKnown ? fmtCurrency(row.cost) : '—'}</td><td>${row.profit === null ? '—' : fmtCurrency(row.profit)}</td>
+      <td>${row.invoice.paid ? 'Cobrada' : row.invoice.issued ? 'Emitida · pendiente' : 'Pendiente de emitir'}</td>`;
+    tr.title = `Abrir factura ${row.invoice.number || ''}`;
+    tr.tabIndex = 0;
+    tr.addEventListener('click', ()=>openRecordPreview('invoices', row.invoice.id));
+    tr.addEventListener('keydown', event=>{
+      if(event.key === 'Enter' || event.key === ' '){
+        event.preventDefault();
+        openRecordPreview('invoices', row.invoice.id);
+      }
+    });
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  tableWrap.replaceChildren(table);
 }
 
 /* Invoices */
@@ -3664,7 +3865,7 @@ async function renderInvoicesList(){
       : inv.issued
         ? 'Factura emitida: no eliminable'
         : 'Factura cobrada: no eliminable';
-    tr.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${Number(inv.id)}" aria-label="Seleccionar ${escapeHtml(inv.number || 'factura')}"></td><td>${escapeHtml(inv.number || '—')}</td><td>${budgetInfo}</td><td>${partInfo}</td><td>${escapeHtml(clientName)}</td><td>${escapeHtml(createdDate.toLocaleString())}</td><td>${escapeHtml(fmtCurrency(inv.total))}</td><td><button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-id="${Number(inv.id)}" data-action="preview">👁</button> <button class="btn invoice-status ${issuedClass}" title="${inv.issued ? 'Desmarcar emitida' : 'Marcar factura como emitida'}" data-id="${Number(inv.id)}" data-action="issued">${issuedLabel}</button> <button class="btn invoice-status ${paidClass}" title="${inv.paid ? 'Marcar factura como pendiente de cobro' : 'Marcar factura como cobrada'}" data-id="${Number(inv.id)}" data-action="paid">${paidLabel}</button> <button class="icon-btn pdf-action" title="Descargar PDF" aria-label="Descargar PDF" data-id="${Number(inv.id)}" data-action="pdf">🖨</button> <button class="icon-btn danger" title="${escapeHtml(protectedInvoice ? protectedReason : 'Eliminar')}" aria-label="${escapeHtml(protectedInvoice ? protectedReason : 'Eliminar')}" data-id="${Number(inv.id)}" data-action="del" ${protectedInvoice ? 'disabled' : ''}>🗑</button></td>`;
+    tr.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${Number(inv.id)}" aria-label="Seleccionar ${escapeHtml(inv.number || 'factura')}"></td><td>${escapeHtml(inv.number || '—')}</td><td>${budgetInfo}</td><td>${partInfo}</td><td>${escapeHtml(clientName)}</td><td>${escapeHtml(createdDate.toLocaleString())}</td><td>${escapeHtml(fmtCurrency(inv.total))}</td><td><div class="row-actions"><button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-id="${Number(inv.id)}" data-action="preview">👁</button><button class="btn invoice-status ${issuedClass}" title="${inv.issued ? 'Desmarcar emitida' : 'Marcar factura como emitida'}" data-id="${Number(inv.id)}" data-action="issued">${issuedLabel}</button><button class="btn invoice-status ${paidClass}" title="${inv.paid ? 'Marcar factura como pendiente de cobro' : 'Marcar factura como cobrada'}" data-id="${Number(inv.id)}" data-action="paid">${paidLabel}</button><button class="icon-btn pdf-action" title="Descargar PDF" aria-label="Descargar PDF" data-id="${Number(inv.id)}" data-action="pdf">🖨</button><button class="icon-btn danger" title="${escapeHtml(protectedInvoice ? protectedReason : 'Eliminar')}" aria-label="${escapeHtml(protectedInvoice ? protectedReason : 'Eliminar')}" data-id="${Number(inv.id)}" data-action="del" ${protectedInvoice ? 'disabled' : ''}>🗑</button></div></td>`;
     tbody.appendChild(tr);
     tr.addEventListener('click', event=>{
       if(event.target.closest('button, input, select, textarea, a')) return;
