@@ -2067,7 +2067,7 @@ async function confirmAppointmentConflict(appointments, dateTime, excludedId=nul
   );
 }
 
-function renderPartsTable(wrap, pageData, total, technicianMode=false){
+function renderPartsTable(wrap, pageData, total, technicianMode=false, statuses=[]){
   const table = document.createElement('table');
   table.className = `table parts-data-table${technicianMode ? ' technician-mode' : ''}`;
   const appointmentHeader = '<th class="part-appointment-header">Hora cita</th>';
@@ -2114,15 +2114,15 @@ function renderPartsTable(wrap, pageData, total, technicianMode=false){
         <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar" data-action="del">🗑</button>
       </div></td><td class="part-mobile-details-cell" colspan="10">${mobileDetails}</td>`;
     tbody.appendChild(row);
-    getPartSettings().then(({statuses})=>{
-      const found = statuses.find(s=>s.name === displayStatus);
-      if(found){ row.querySelector('.part-status').style.backgroundColor = found.color; row.querySelector('.part-status').style.color = '#fff'; }
-    });
+    const foundStatus = statuses.find(status=>status.name === displayStatus);
+    if(foundStatus){
+      row.querySelector('.part-status').style.backgroundColor = foundStatus.color;
+      row.querySelector('.part-status').style.color = '#fff';
+    }
     const statusCell = row.querySelector('.part-status-cell');
     statusCell.addEventListener('click', async event=>{
       event.stopPropagation();
       if(statusCell.querySelector('.inline-status-menu')) return;
-      const {statuses} = await getPartSettings();
       const menu = document.createElement('div');
       menu.className = 'inline-status-menu';
       menu.setAttribute('role', 'listbox');
@@ -2251,6 +2251,9 @@ async function renderPartsList(){
   if(parts.length===0){ wrap.innerHTML='<p class="small">No hay informes todavía.</p>'; return; }
   const settings = settingsRecord || {};
   const technicianMode = Boolean(settings.streetTechnicianMode);
+  const statuses = Array.isArray(settings.reportStatuses)
+    ? settings.reportStatuses
+    : [{name:'Pte revisión',color:'#6c757d'},{name:'Finalizado',color:'#198754'}];
   const todayKey = localDateKey(new Date());
   const appointmentsByPart = new Map();
   const pendingTodayParts = new Set();
@@ -2416,7 +2419,7 @@ async function renderPartsList(){
     })
     : sortByText(searchableParts, item=>item.part.number, 'parts');
   const pageData = pagedItems(sortedParts, 'parts');
-  return renderPartsTable(wrap, pageData, sortedParts.length, technicianMode);
+  return renderPartsTable(wrap, pageData, sortedParts.length, technicianMode, statuses);
   pageData.items.forEach(({part:p, client, pieces})=>{
     const div = document.createElement('div'); div.className='card part-card';
     wrap.appendChild(div);
@@ -2456,7 +2459,7 @@ async function renderPartsList(){
           <p><strong>Problema del cliente:</strong> ${escapeHtml(p.customerProblem || p.desc || '—')}</p>
           <p><strong>Trabajos realizados:</strong> ${escapeHtml(p.technicianWork || '—')}</p>
           <h4>Piezas utilizadas</h4>
-          <table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th></tr></thead><tbody>${pieceHtml.join('').replace(/<li>(.*?) x (.*?)<\/li>/g, '<tr><td>$1</td><td>$2</td></tr>') || '<tr><td colspan="2" class="small">Ninguna</td></tr>'}</tbody></table>
+          <div class="part-lines-scroll"><table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th></tr></thead><tbody>${pieceHtml.join('').replace(/<li>(.*?) x (.*?)<\/li>/g, '<tr><td>$1</td><td>$2</td></tr>') || '<tr><td colspan="2" class="small">Ninguna</td></tr>'}</tbody></table></div>
           <p><strong>Fotos y vídeos:</strong></p>
           <div class="part-attachments"></div>
           <label class="attachment-upload-button attachment-upload-button-compact">
@@ -2567,14 +2570,19 @@ async function renderPartsList(){
 async function openPartDetailsModal(partId){
   const part = await GenalDB.get('parts', partId);
   if(!part) return;
-  const client = await GenalDB.get('clients', part.clientId);
-  const budgets = (await GenalDB.getAll('budgets')).filter(budget=>Number(budget.fromPart) === Number(partId));
-  const invoices = (await GenalDB.getAll('invoices')).filter(invoice=>Number(invoice.fromPart) === Number(partId));
-  const appointments = (await GenalDB.getAll('appointments')).filter(item=>Number(item.partId) === Number(partId)).sort((a,b)=>new Date(a.dateTime)-new Date(b.dateTime));
+  const [client, budgets, invoices, appointments] = await Promise.all([
+    GenalDB.get('clients', part.clientId),
+    GenalDB.getAllByField('budgets', 'fromPart', Number(partId)),
+    GenalDB.getAllByField('invoices', 'fromPart', Number(partId)),
+    GenalDB.getAllByField('appointments', 'partId', Number(partId))
+  ]);
+  appointments.sort((a,b)=>new Date(a.dateTime)-new Date(b.dateTime));
   const device = part.device || {};
   const pieces = part.pieces || part.lines || [];
-  const products = await Promise.all(pieces.map(piece=>piece.productId ? GenalDB.get('products', piece.productId) : null));
-  const pieceRows = pieces.map((piece,index)=>`<tr><td>${piece.description || products[index]?.name || '(pieza eliminada)'}</td><td>${piece.qty}</td><td>${piece.productId && piece.deductStock !== false ? 'Sí' : 'No'}</td></tr>`).join('');
+  const productIds = [...new Set(pieces.map(piece=>piece.productId).filter(Boolean))];
+  const productEntries = await Promise.all(productIds.map(async id=>[String(id), await GenalDB.get('products', id)]));
+  const productsById = new Map(productEntries);
+  const pieceRows = pieces.map(piece=>`<tr><td>${escapeHtml(piece.description || productsById.get(String(piece.productId))?.name || '(pieza eliminada)')}</td><td>${escapeHtml(piece.qty)}</td><td>${piece.productId && piece.deductStock !== false ? 'Sí' : 'No'}</td></tr>`).join('');
   const budgetHtml = budgets.map(budget=>`<li><button class="link-button" data-open-budget="${budget.id}">${budget.number}</button> · ${fmtCurrency(budget.total)}</li>`).join('') || '<li>Ninguno</li>';
   const invoiceHtml = invoices.map(invoice=>`<li><button class="link-button" data-open-invoice="${invoice.id}">${invoice.number}</button> · ${fmtCurrency(invoice.total)} · ${invoice.issued ? 'Emitida' : 'Pendiente'}</li>`).join('') || '<li>Ninguna</li>';
   const appointmentHtml = appointments.map(item=>`<li>${agendaDateTimeLabel(item.dateTime)}${item.notes ? ` · ${item.notes}` : ''}</li>`).join('') || '<li>Ninguna</li>';
@@ -2606,7 +2614,7 @@ async function openPartDetailsModal(partId){
         <section class="part-detail-section"><h4>Trabajos realizados</h4><p class="part-detail-text">${escapeHtml(part.technicianWork || '—')}</p></section>
       </div>
       <section class="part-detail-section"><h4>Citas</h4><ul class="part-detail-list">${appointmentHtml}</ul></section>
-      <section class="part-detail-section"><h4>Piezas utilizadas</h4><table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th><th>Descontar stock</th></tr></thead><tbody>${pieceRows || '<tr><td colspan="3" class="small">Ninguna</td></tr>'}</tbody></table></section>
+      <section class="part-detail-section"><h4>Piezas utilizadas</h4><div class="part-lines-scroll"><table class="table part-lines-table"><thead><tr><th>Pieza</th><th>Cantidad</th><th>Descontar stock</th></tr></thead><tbody>${pieceRows || '<tr><td colspan="3" class="small">Ninguna</td></tr>'}</tbody></table></div></section>
       <section class="part-detail-section"><h4>Fotos y vídeos</h4>
         <div class="part-modal-attachments"></div>
         ${isFinalizedPartStatus(part.status) ? '<p class="small">Los informes finalizados no se pueden modificar.</p>' : `<label class="attachment-upload-button attachment-upload-button-compact">
@@ -2743,7 +2751,7 @@ const DOCUMENT_STYLE = `<style>
 </style><div class="genal-document">`;
 function documentStart(){ return DOCUMENT_STYLE; }
 
-function buildPartReportHTML(part, client, cfg, appointments=[]){
+function buildPartReportHTML(part, client, cfg, appointments=[], productsById=new Map()){
   const company = cfg.company || {};
   const logoSrc = safeImageSource(cfg.logo);
   const device = part.device || {};
@@ -2772,7 +2780,7 @@ function buildPartReportHTML(part, client, cfg, appointments=[]){
   html += `<h3>Trabajos realizados por el técnico</h3><p style="white-space:pre-wrap">${escapeHtml(part.technicianWork || '—')}</p>`;
   html += `<h3>Piezas utilizadas</h3><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Pieza</th><th style="border-bottom:1px solid #ccc">Cantidad</th></tr></thead><tbody>`;
   for(const piece of pieces){
-    const product = piece.productId ? window._partProductsCache?.[piece.productId] : null;
+    const product = piece.productId ? productsById.get(String(piece.productId)) : null;
     html += `<tr><td style="padding:6px 0">${escapeHtml(piece.description || product?.name || 'Pieza')}</td><td style="text-align:center">${Number(piece.qty) || 0}</td></tr>`;
   }
   html += `</tbody></table></div>`;
@@ -2782,17 +2790,16 @@ function buildPartReportHTML(part, client, cfg, appointments=[]){
 async function getPartReportHTML(partId){
   const part = await GenalDB.get('parts', partId);
   if(!part){ showToast('Informe no encontrado', 'error'); return null; }
-  const client = await GenalDB.get('clients', part.clientId);
-  const cfg = await getConfig();
-  const appointments = (await GenalDB.getAll('appointments')).filter(item=>Number(item.partId) === Number(partId)).sort((a,b)=>new Date(a.dateTime)-new Date(b.dateTime));
-  window._partProductsCache = {};
-  for(const piece of (part.pieces || part.lines || [])){
-    if(piece.productId){
-      const product = await GenalDB.get('products', piece.productId);
-      window._partProductsCache[piece.productId] = product;
-    }
-  }
-  return { part, html: buildPartReportHTML(part, client, cfg, appointments) };
+  const [client, cfg, appointments] = await Promise.all([
+    GenalDB.get('clients', part.clientId),
+    getConfig(),
+    GenalDB.getAllByField('appointments', 'partId', Number(partId))
+  ]);
+  appointments.sort((a,b)=>new Date(a.dateTime)-new Date(b.dateTime));
+  const productIds = [...new Set((part.pieces || part.lines || []).map(piece=>piece.productId).filter(Boolean))];
+  const productEntries = await Promise.all(productIds.map(async id=>[id, await GenalDB.get('products', id)]));
+  const productsById = new Map(productEntries.map(([id, product])=>[String(id), product]));
+  return { part, html: buildPartReportHTML(part, client, cfg, appointments, productsById) };
 }
 
 async function previewPart(partId){
@@ -2878,33 +2885,45 @@ async function createBudget(){
 
 async function renderBudgetsList(){
   if(window._mobileFilterOpen) return;
-  const list = await GenalDB.getAll('budgets');
+  const renderToken = (window._budgetRenderToken || 0) + 1;
+  window._budgetRenderToken = renderToken;
+  const [list, clients, parts, invoices] = await Promise.all([
+    GenalDB.getAll('budgets'),
+    GenalDB.getAll('clients'),
+    GenalDB.getAll('parts'),
+    GenalDB.getAll('invoices')
+  ]);
+  if(renderToken !== window._budgetRenderToken) return;
   const wrap = document.getElementById('budgets-list'); if(!wrap) return; wrap.innerHTML='';
   if(list.length===0){ wrap.innerHTML='<p class="small">No hay presupuestos.</p>'; return; }
+  const clientsById = new Map(clients.map(client=>[String(client.id), client]));
+  const partsById = new Map(parts.map(part=>[String(part.id), part]));
+  const invoicesByBudgetId = new Map(invoices.filter(invoice=>invoice.fromBudget).map(invoice=>[String(invoice.fromBudget), invoice]));
   const numberQuery = (document.getElementById('filter-budget-number')?.value || '').trim().toLowerCase();
   const partQuery = (document.getElementById('filter-budget-part')?.value || '').trim().toLowerCase();
   const clientQuery = (document.getElementById('filter-budget-client')?.value || '').trim().toLowerCase();
   const dateQuery = document.getElementById('filter-budget-date')?.value || '';
   const table = document.createElement('table'); table.className='table';
   table.innerHTML = `<thead><tr><th><input type="checkbox" data-table-select-all aria-label="Seleccionar todos"></th><th>Número</th><th>Parte</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Factura vinculada</th><th>Acciones</th></tr></thead>`;
-  const invoices = await GenalDB.getAll('invoices');
   const tbody = document.createElement('tbody');
-  let visible = 0;
-  const visibleRows = [];
+  const visibleBudgets = [];
   sortByText(list, item=>item.number, 'budgets');
   for(const b of list){
-    const client = await GenalDB.get('clients', b.clientId);
-    const part = b.fromPart ? await GenalDB.get('parts', b.fromPart) : null;
+    const client = clientsById.get(String(b.clientId));
+    const part = b.fromPart ? partsById.get(String(b.fromPart)) : null;
     const partNumber = b.partNumber || part?.number || '—';
     const clientName = getClientDisplayName(client);
-    const linkedInvoice = invoices.find(invoice=>Number(invoice.fromBudget) === Number(b.id));
+    const linkedInvoice = invoicesByBudgetId.get(String(b.id));
     const createdDate = new Date(b.createdAt);
     const dateValue = createdDate.toISOString().slice(0, 10);
     if(numberQuery && !String(b.number || '').toLowerCase().includes(numberQuery)) continue;
     if(partQuery && !String(partNumber).toLowerCase().includes(partQuery)) continue;
     if(clientQuery && !clientName.toLowerCase().includes(clientQuery)) continue;
     if(dateQuery && dateValue !== dateQuery) continue;
-    visible++;
+    visibleBudgets.push({budget:b, partNumber, clientName, linkedInvoice, createdDate});
+  }
+  const budgetPage = pagedItems(visibleBudgets, 'budgets');
+  for(const {budget:b, partNumber, clientName, linkedInvoice, createdDate} of budgetPage.items){
     const tr = document.createElement('tr');
     const invoiceInfo = linkedInvoice
       ? `<button class="budget-invoice-link" data-invoice-id="${Number(linkedInvoice.id)}">${escapeHtml(linkedInvoice.number)}</button> · ${fmtCurrency(linkedInvoice.total)} · ${linkedInvoice.issued ? 'Emitida' : 'Pendiente'}`
@@ -2918,17 +2937,14 @@ async function renderBudgetsList(){
       previewBudget(b.id);
     });
     tbody.appendChild(tr);
-    visibleRows.push(tr);
   }
-  if(visible === 0){
+  if(visibleBudgets.length === 0){
     const tr = document.createElement('tr');
     tr.innerHTML = '<td colspan="8" class="small">No se encontraron presupuestos.</td>';
     tbody.appendChild(tr);
   }
   table.appendChild(tbody); wrap.appendChild(table);
-  const budgetPage = pagedItems(visibleRows, 'budgets');
-  visibleRows.forEach(row=>{ if(!budgetPage.items.includes(row)) row.remove(); });
-  appendPagination(wrap, 'budgets', visibleRows.length, renderBudgetsList);
+  appendPagination(wrap, 'budgets', visibleBudgets.length, renderBudgetsList);
   wrap.querySelectorAll('[data-action]').forEach(btn=> btn.addEventListener('click', async event=>{
     event.stopPropagation();
     const id = Number(btn.dataset.id); const action = btn.dataset.action;
@@ -3594,9 +3610,13 @@ async function renderInvoicesList(){
   if(window._mobileFilterOpen) return;
   const renderToken = (window._invoiceRenderToken || 0) + 1;
   window._invoiceRenderToken = renderToken;
-  const list = await GenalDB.getAll('invoices');
+  const [list, clients] = await Promise.all([
+    GenalDB.getAll('invoices'),
+    GenalDB.getAll('clients')
+  ]);
   if(renderToken !== window._invoiceRenderToken) return;
   const wrap = document.getElementById('invoices-list'); if(!wrap) return; wrap.innerHTML='';
+  const clientsById = new Map(clients.map(client=>[String(client.id), client]));
   const numberQuery = (document.getElementById('filter-invoice-number')?.value || '').trim().toLowerCase();
   const clientQuery = (document.getElementById('filter-invoice-client')?.value || '').trim().toLowerCase();
   const dateMode = document.getElementById('filter-invoice-date-mode')?.value || 'single';
@@ -3606,12 +3626,10 @@ async function renderInvoicesList(){
   const table = document.createElement('table'); table.className='table';
   table.innerHTML = `<thead><tr><th><input type="checkbox" data-table-select-all aria-label="Seleccionar todas"></th><th>Número</th><th>Presupuesto</th><th>Parte</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Acciones</th></tr></thead>`;
   const tbody = document.createElement('tbody');
-  let visible = 0;
-  const visibleRows = [];
+  const visibleInvoices = [];
   sortByText(list, item=>item.number, 'invoices');
   for(const inv of list){
-    const client = await GenalDB.get('clients', inv.clientId);
-    if(renderToken !== window._invoiceRenderToken) return;
+    const client = clientsById.get(String(inv.clientId));
     const clientName = getClientDisplayName(client);
     const createdDate = new Date(inv.createdAt);
     if(numberQuery && !String(inv.number || '').toLowerCase().includes(numberQuery)) continue;
@@ -3619,7 +3637,10 @@ async function renderInvoicesList(){
     const invoiceDate = createdDate.toISOString().slice(0,10);
     if(dateMode === 'single' && dateQuery && invoiceDate !== dateQuery) continue;
     if(dateMode === 'range' && ((dateFrom && invoiceDate < dateFrom) || (dateTo && invoiceDate > dateTo))) continue;
-    visible++;
+    visibleInvoices.push({invoice:inv, clientName, createdDate});
+  }
+  const invoicePage = pagedItems(visibleInvoices, 'invoices');
+  for(const {invoice:inv, clientName, createdDate} of invoicePage.items){
     const tr = document.createElement('tr');
     const issuedLabel = inv.issued ? 'Emitida' : 'Marcar emitida';
     const issuedClass = inv.issued ? 'invoice-issued' : 'invoice-pending';
@@ -3639,21 +3660,18 @@ async function renderInvoicesList(){
         : 'Factura cobrada: no eliminable';
     tr.innerHTML = `<td><input type="checkbox" class="row-select" data-row-id="${Number(inv.id)}" aria-label="Seleccionar ${escapeHtml(inv.number || 'factura')}"></td><td>${escapeHtml(inv.number || '—')}</td><td>${budgetInfo}</td><td>${partInfo}</td><td>${escapeHtml(clientName)}</td><td>${escapeHtml(createdDate.toLocaleString())}</td><td>${escapeHtml(fmtCurrency(inv.total))}</td><td><button class="icon-btn" title="Vista previa" aria-label="Vista previa" data-id="${Number(inv.id)}" data-action="preview">👁</button> <button class="btn invoice-status ${issuedClass}" title="${inv.issued ? 'Desmarcar emitida' : 'Marcar factura como emitida'}" data-id="${Number(inv.id)}" data-action="issued">${issuedLabel}</button> <button class="btn invoice-status ${paidClass}" title="${inv.paid ? 'Marcar factura como pendiente de cobro' : 'Marcar factura como cobrada'}" data-id="${Number(inv.id)}" data-action="paid">${paidLabel}</button> <button class="icon-btn pdf-action" title="Descargar PDF" aria-label="Descargar PDF" data-id="${Number(inv.id)}" data-action="pdf">🖨</button> <button class="icon-btn danger" title="${escapeHtml(protectedInvoice ? protectedReason : 'Eliminar')}" aria-label="${escapeHtml(protectedInvoice ? protectedReason : 'Eliminar')}" data-id="${Number(inv.id)}" data-action="del" ${protectedInvoice ? 'disabled' : ''}>🗑</button></td>`;
     tbody.appendChild(tr);
-    visibleRows.push(tr);
     tr.addEventListener('click', event=>{
       if(event.target.closest('button, input, select, textarea, a')) return;
       previewInvoice(inv.id);
     });
   }
-  if(visible === 0){
+  if(visibleInvoices.length === 0){
     const tr = document.createElement('tr');
     tr.innerHTML = `<td colspan="8" class="small">${list.length ? 'No se encontraron facturas.' : 'No hay facturas.'}</td>`;
     tbody.appendChild(tr);
   }
   table.appendChild(tbody); wrap.appendChild(table);
-  const invoicePage = pagedItems(visibleRows, 'invoices');
-  visibleRows.forEach(row=>{ if(!invoicePage.items.includes(row)) row.remove(); });
-  appendPagination(wrap, 'invoices', visibleRows.length, renderInvoicesList);
+  appendPagination(wrap, 'invoices', visibleInvoices.length, renderInvoicesList);
   wrap.querySelectorAll('[data-action]').forEach(btn=> btn.addEventListener('click', async ()=>{
     const id = Number(btn.dataset.id); const action = btn.dataset.action;
       if(action === 'preview') await openRecordPreview('invoices', id);

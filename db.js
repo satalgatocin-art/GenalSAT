@@ -2,7 +2,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app-check.js';
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, reauthenticateWithPopup, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
-import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, limit, query, setDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, limit, query, setDoc, where, writeBatch } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 (function(window){
   const firebaseConfig = {
@@ -143,6 +143,12 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, limit, query
   async function getAll(store){
     await requireUser();
     const snapshot = await getDocs(storeRef(store));
+    return snapshot.docs.map(item=>({id:item.data().id ?? item.id, ...item.data()}));
+  }
+
+  async function getAllByField(store, field, value){
+    await requireUser();
+    const snapshot = await getDocs(query(storeRef(store), where(field, '==', value)));
     return snapshot.docs.map(item=>({id:item.data().id ?? item.id, ...item.data()}));
   }
 
@@ -422,6 +428,6 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, limit, query
     return response.blob();
   }
 
-  window.GenalDB = {openDB,getAll,get,add,put,remove,seedIfEmpty};
+  window.GenalDB = {openDB,getAll,getAllByField,get,add,put,remove,seedIfEmpty};
   window.GenalDrive = {upload:uploadToDrive, remove:deleteFromDrive, download:downloadFromDrive, prepareAccess:prepareDriveAccess};
 })(window);

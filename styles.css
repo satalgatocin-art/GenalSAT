@@ -231,6 +231,9 @@ footer{padding:8px 24px;background:#fafafa;border-top:1px solid #eee}
 .part-detail-list li{padding:5px 0}
 .part-details-modal .part-lines-table{margin-top:0}
 .part-details-modal .part-lines-table tbody tr:nth-child(even) td{background:#f8fafc}
+.part-lines-scroll{width:100%;max-width:100%;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.part-lines-scroll .part-lines-table{width:100%;min-width:0;table-layout:fixed}
+.part-lines-scroll .part-lines-table th,.part-lines-scroll .part-lines-table td{white-space:normal;overflow-wrap:anywhere}
 .part-details-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e1e5eb}
 .part-details-actions .btn{min-height:42px}
 .part-details-actions .danger{background:#dc3545}
@@ -251,6 +254,13 @@ footer{padding:8px 24px;background:#fafafa;border-top:1px solid #eee}
   .part-detail-grid,.part-detail-overview{grid-template-columns:1fr}
   .part-detail-section{padding:12px}
   .part-detail-data div{grid-template-columns:1fr;gap:3px}
+  .part-details-modal .modal-content{min-width:0;overflow-x:hidden}
+  .part-details-modal .modal-body,.part-detail-section,.part-detail-grid,.part-related-links{min-width:0;max-width:100%}
+  .part-lines-scroll{margin:0;overflow-x:auto}
+  .part-lines-scroll .part-lines-table{min-width:0;table-layout:fixed}
+  .part-details-modal .part-lines-table th:first-child,.part-details-modal .part-lines-table td:first-child{width:54%}
+  .part-details-modal .part-lines-table th:nth-child(2),.part-details-modal .part-lines-table td:nth-child(2){width:18%;text-align:center}
+  .part-details-modal .part-lines-table th:nth-child(3),.part-details-modal .part-lines-table td:nth-child(3){width:28%}
   .part-details-actions{grid-template-columns:1fr 1fr;gap:8px}
   .part-details-actions .btn{width:100%;padding:9px 6px;font-size:.9rem}
 }
@@ -399,6 +409,12 @@ footer{padding:8px 24px;background:#fafafa;border-top:1px solid #eee}
   .list-filter-toolbar .mobile-filter-trigger{flex:1 1 auto;justify-content:center}
   .client-actions .mobile-filter-trigger{display:inline-flex;flex:1 1 0;justify-content:center;margin:0}
   .client-actions .client-add-button{flex:1 1 0!important;width:auto!important;min-width:0!important;justify-content:center}
+  .part-details{min-width:0;max-width:100%;overflow:hidden;padding:10px}
+  .part-details .part-lines-scroll{max-width:100%;overflow-x:auto}
+  .part-details .part-lines-table{width:100%;min-width:0;table-layout:fixed}
+  .part-details .part-lines-table th:first-child,.part-details .part-lines-table td:first-child{width:70%}
+  .part-details .part-lines-table th:nth-child(2),.part-details .part-lines-table td:nth-child(2){width:30%;text-align:center}
+  .part-details .part-lines-table th,.part-details .part-lines-table td{white-space:normal;overflow-wrap:anywhere}
   .attachment-item{width:100%;grid-template-columns:80px minmax(0,1fr)}
   .attachment-preview{width:80px;height:64px}
   .attachment-item span{max-width:none;min-width:0}
