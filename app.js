@@ -224,7 +224,6 @@ function initNav(){
 }
 
 async function openRecordPreview(view, id){
-  await showView(view);
   if(view === 'parts') await previewPart(id);
   if(view === 'budgets') await previewBudget(id);
   if(view === 'invoices') await previewInvoice(id);
@@ -2743,6 +2742,7 @@ const DOCUMENT_STYLE = `<style>
   .genal-document table{width:100%;margin:18px 0;border-collapse:collapse;border:1px solid #d9e1e5;font-size:12.5px}
   .genal-document th{padding:9px 10px;background:#edf4f5;color:#174d5b;text-align:right;border-bottom:2px solid #9fc2c9}
   .genal-document th:first-child{text-align:left}
+  .genal-document th:nth-child(2){text-align:center}
   .genal-document td{padding:9px 10px;border-bottom:1px solid #e5ebed}
   .genal-document tbody tr:nth-child(even){background:#f8fafb}
   .genal-document tbody tr:last-child td{border-bottom:0}
