@@ -219,23 +219,26 @@ async function showView(view){
       </div>
 
       <div class="card">
-        <h3>Historial de movimientos</h3>
-        <div class="form-row moves-filters">
-          <input id="filter-move-date" type="date" aria-label="Filtrar movimientos por fecha">
-          <input id="filter-move-code" placeholder="Código" aria-label="Filtrar movimientos por código">
-          <input id="filter-move-product" placeholder="Producto" aria-label="Filtrar movimientos por producto">
-          <input id="filter-move-product-type" placeholder="Tipo" aria-label="Filtrar movimientos por tipo de producto">
-          <input id="filter-move-qty" type="number" min="0" step="0.01" placeholder="Unidades" aria-label="Filtrar movimientos por unidades">
-          <select id="filter-move-source" aria-label="Filtrar movimientos por origen">
-            <option value="">Todos los movimientos</option>
-            <option value="manual">Stock manual</option>
-            <option value="part">Movimientos desde un parte</option>
-          </select>
-          <select id="filter-move-type" aria-label="Filtrar movimientos por entrada o salida">
-            <option value="">Entrada/Salida</option>
-            <option value="entrada">Entrada</option>
-            <option value="salida">Salida</option>
-          </select>
+        <h3 class="moves-list-header">Historial de movimientos</h3>
+        <button type="button" class="btn secondary mobile-filter-trigger" data-filter-target=".moves-filters">🔎 Filtros</button>
+        <div class="parts-filters moves-filters">
+          <div class="form-row moves-filter-row">
+            <input id="filter-move-date" type="date" aria-label="Filtrar movimientos por fecha">
+            <input id="filter-move-code" placeholder="Código" aria-label="Filtrar movimientos por código">
+            <input id="filter-move-product" placeholder="Producto" aria-label="Filtrar movimientos por producto">
+            <input id="filter-move-product-type" placeholder="Tipo" aria-label="Filtrar movimientos por tipo de producto">
+            <input id="filter-move-qty" type="number" min="0" step="0.01" placeholder="Unidades" aria-label="Filtrar movimientos por unidades">
+            <select id="filter-move-source" aria-label="Filtrar movimientos por origen">
+              <option value="">Todos los movimientos</option>
+              <option value="manual">Stock manual</option>
+              <option value="part">Movimientos desde un parte</option>
+            </select>
+            <select id="filter-move-type" aria-label="Filtrar movimientos por entrada o salida">
+              <option value="">Entrada/Salida</option>
+              <option value="entrada">Entrada</option>
+              <option value="salida">Salida</option>
+            </select>
+          </div>
         </div>
         <div id="moves-list"></div>
       </div>
@@ -280,6 +283,7 @@ async function showView(view){
         document.getElementById(id).addEventListener('input', renderMovesList);
         document.getElementById(id).addEventListener('change', renderMovesList);
       });
+    document.querySelector('[data-filter-target=".moves-filters"]')?.addEventListener('click', event=>openMobileFilter(event.currentTarget,'.moves-filters','Filtrar movimientos',renderMovesList));
     await populateProductsForMoves();
     renderStockList();
     renderMovesList();
@@ -289,9 +293,12 @@ async function showView(view){
     const card = document.createElement('div'); card.className='card';
     card.innerHTML = `
       <h2>Informes de trabajo</h2>
-      <button type="button" class="btn secondary mobile-filter-trigger" data-filter-target=".parts-filters">🔎 Filtros</button>
+      <div class="list-filter-toolbar">
+        <button type="button" class="btn secondary sort-toggle" title="Ordenar A-Z / Z-A" aria-label="Cambiar orden" data-sort-key="parts">↕ A-Z / Z-A</button>
+        <button type="button" class="btn secondary mobile-filter-trigger" data-filter-target=".parts-filters">🔎 Filtros</button>
+      </div>
       <div class="parts-filters card">
-        <h3>Buscar partes <button type="button" class="icon-btn sort-toggle" title="Ordenar A-Z / Z-A" aria-label="Cambiar orden" data-sort-key="parts">↕</button></h3>
+        <h3>Buscar partes</h3>
         <div class="parts-filter-scroll">
         <div class="parts-filter-row">
           <input id="filter-part-number" placeholder="Nº parte">
@@ -448,9 +455,12 @@ async function showView(view){
     const card = document.createElement('div'); card.className='card';
     card.innerHTML = `
       <h2>Presupuestos</h2>
-      <button type="button" class="btn secondary mobile-filter-trigger" data-filter-target=".budget-filters">🔎 Filtros</button>
+      <div class="list-filter-toolbar">
+        <button type="button" class="btn secondary sort-toggle" title="Ordenar A-Z / Z-A" aria-label="Cambiar orden" data-sort-key="budgets">↕ A-Z / Z-A</button>
+        <button type="button" class="btn secondary mobile-filter-trigger" data-filter-target=".budget-filters">🔎 Filtros</button>
+      </div>
       <div class="parts-filters card budget-filters">
-        <h3>Buscar presupuestos <button type="button" class="icon-btn sort-toggle" title="Ordenar A-Z / Z-A" aria-label="Cambiar orden" data-sort-key="budgets">↕</button></h3>
+        <h3>Buscar presupuestos</h3>
         <div class="parts-filter-scroll">
           <div class="parts-filter-row">
             <input id="filter-budget-number" placeholder="Nº presupuesto">
@@ -476,9 +486,12 @@ async function showView(view){
     const card = document.createElement('div'); card.className='card';
     card.innerHTML = `
       <h2>Facturas</h2>
-      <button type="button" class="btn secondary mobile-filter-trigger" data-filter-target=".invoice-filters">🔎 Filtros</button>
+      <div class="list-filter-toolbar">
+        <button type="button" class="btn secondary sort-toggle" title="Ordenar A-Z / Z-A" aria-label="Cambiar orden" data-sort-key="invoices">↕ A-Z / Z-A</button>
+        <button type="button" class="btn secondary mobile-filter-trigger" data-filter-target=".invoice-filters">🔎 Filtros</button>
+      </div>
       <div class="parts-filters card invoice-filters">
-        <h3>Buscar facturas <button type="button" class="icon-btn sort-toggle" title="Ordenar A-Z / Z-A" aria-label="Cambiar orden" data-sort-key="invoices">↕</button></h3>
+        <h3>Buscar facturas</h3>
         <div class="parts-filter-scroll">
           <div class="parts-filter-row">
             <input id="filter-invoice-number" placeholder="Nº factura">
@@ -506,21 +519,24 @@ async function showView(view){
     const card = document.createElement('div'); card.className='card';
     card.innerHTML = `
       <h2>Clientes</h2>
+      <div class="client-sort-toolbar">
+        <button type="button" class="btn secondary sort-toggle" title="Ordenar A-Z / Z-A" aria-label="Cambiar orden" data-sort-key="clients">↕ A-Z / Z-A</button>
+      </div>
+      <div class="client-actions">
+        <button type="button" class="btn secondary mobile-filter-trigger" data-filter-target=".client-filters">🔎 Filtros</button>
+        <button id="open-client-form" class="btn client-add-button">Añadir Cliente</button>
+      </div>
       <div class="parts-filters card client-filters">
-        <div class="client-filters-header">
-          <h3>Buscar clientes <button type="button" class="icon-btn sort-toggle" title="Ordenar A-Z / Z-A" aria-label="Cambiar orden" data-sort-key="clients">↕</button></h3>
-        </div>
+        <h3>Buscar clientes</h3>
         <div class="parts-filter-scroll">
           <div class="parts-filter-row">
             <input id="client-search-name" placeholder="Nombre o apellidos" aria-label="Buscar por nombre">
             <input id="client-search-dni" placeholder="DNI / NIF" aria-label="Buscar por DNI o NIF">
             <input id="client-search-phone" placeholder="Teléfono" aria-label="Buscar por teléfono">
             <input id="client-search-locality" placeholder="Localidad" aria-label="Buscar por localidad">
-            <button id="open-client-form" class="btn client-add-button">Añadir Cliente</button>
           </div>
         </div>
       </div>
-      <button type="button" class="btn secondary mobile-filter-trigger" data-filter-target=".client-filters">🔎 Filtros</button>
       <div class="card">
         <h3>Clientes existentes</h3>
         <div id="clients-list"></div>
@@ -1898,7 +1914,9 @@ function renderAttachmentList(attachments, container, editable=false, onRemove=n
       event.stopPropagation();
       openAttachmentViewer(attachments, index);
     });
-    item.appendChild(viewButton);
+    const actions = document.createElement('div');
+    actions.className = 'attachment-actions';
+    actions.appendChild(viewButton);
     const download = document.createElement('a');
     download.className = 'attachment-download';
     download.textContent = 'Descargar';
@@ -1914,7 +1932,7 @@ function renderAttachmentList(attachments, container, editable=false, onRemove=n
         showToast('No se pudo descargar el archivo.', 'error');
       }
     });
-    item.appendChild(download);
+    actions.appendChild(download);
     if(editable || onRemove){
       const remove = document.createElement('button');
       remove.type = 'button';
@@ -1940,8 +1958,9 @@ function renderAttachmentList(attachments, container, editable=false, onRemove=n
           await onRemove(index);
         }
       });
-      item.appendChild(remove);
+      actions.appendChild(remove);
     }
+    item.appendChild(actions);
     container.appendChild(item);
   });
 }
@@ -3283,7 +3302,9 @@ async function renderAgendaView(container){
       const client = part ? clientsById.get(Number(part.clientId)) : null;
       return `<div class="agenda-list-item"><div><strong>${agendaDateTimeLabel(item.dateTime)}</strong> · <button type="button" class="link-button" data-open-part="${part?.id || ''}">${part?.number || 'Informe eliminado'}</button> · ${getClientDisplayName(client)}${item.status === 'Finalizada' ? ' · <strong>Finalizada</strong>' : ''}${item.notes ? `<br><span class="small">${item.notes}</span>` : ''}</div><div><button type="button" class="icon-btn edit-action" title="Modificar cita" aria-label="Modificar cita" data-edit-agenda="${item.id}">✎</button> <button type="button" class="icon-btn danger" title="Eliminar cita" aria-label="Eliminar cita" data-delete-agenda="${item.id}">🗑</button></div></div>`;
     }).join('') : '<p class="small">No hay citas para este mes.</p>'}</div>`;
-  container.appendChild(card);
+  const previousCard = container.querySelector('.agenda-view');
+  if(previousCard) previousCard.replaceWith(card);
+  else container.appendChild(card);
   card.querySelectorAll('[data-agenda-month]').forEach(button=>button.addEventListener('click', ()=>{
     const next = new Date(year, month - 1 + Number(button.dataset.agendaMonth), 1);
     window._agendaMonth = agendaMonthKey(next);
@@ -3307,7 +3328,7 @@ async function renderAgendaView(container){
       appointment.dateTime = movedDate.toISOString();
       await GenalDB.put('appointments', appointment);
       showToast('Cita movida al ' + movedDate.toLocaleDateString('es-ES') + '.');
-      await showView('agenda');
+      await renderAgendaView(container);
     });
   });
   card.querySelector('#agenda-form').addEventListener('submit', async event=>{
@@ -3343,7 +3364,7 @@ async function renderAgendaView(container){
     window._agendaEditingId = null;
     showToast(editingAppointment ? 'Cita modificada.' : 'Cita añadida.');
     window._agendaMonth = agendaMonthKey(new Date(dateTime));
-    showView('agenda');
+    await renderAgendaView(container);
   });
   card.querySelectorAll('[data-edit-agenda]').forEach(button=>button.addEventListener('click', ()=>{
     window._agendaEditingId = Number(button.dataset.editAgenda);
@@ -3353,7 +3374,7 @@ async function renderAgendaView(container){
     if(await showConfirmModal('¿Eliminar esta cita?')){
       await GenalDB.remove('appointments', Number(button.dataset.deleteAgenda));
       window._agendaEditingId = null;
-      showView('agenda');
+      await renderAgendaView(container);
     }
   }));
   card.querySelectorAll('[data-open-part]').forEach(button=>button.addEventListener('click', async ()=>{
@@ -3412,7 +3433,7 @@ async function renderAgendaView(container){
         await GenalDB.remove('appointments', Number(appointment.id));
         closePopover();
         showToast('Cita eliminada.');
-        await showView('agenda');
+        await renderAgendaView(container);
       });
       popover.querySelector('[data-save-agenda-time]').addEventListener('click', async ()=>{
         const [hours, minutes] = popover.querySelector('.agenda-time-select').value.split(':').map(Number);
@@ -3423,7 +3444,7 @@ async function renderAgendaView(container){
         await GenalDB.put('appointments', appointment);
         closePopover();
         showToast('Hora de la cita actualizada.');
-        await showView('agenda');
+        await renderAgendaView(container);
       });
       const outsideClick = outsideEvent=>{
         if(!popover.contains(outsideEvent.target) && outsideEvent.target !== button){
