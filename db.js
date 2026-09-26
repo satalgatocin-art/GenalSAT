@@ -20,17 +20,51 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
   });
   const auth = getAuth(firebaseApp);
   const firestore = getFirestore(firebaseApp);
+  const DRIVE_OAUTH_CLIENT_ID = '741995913327-qo7tno84sk6pmnudv8mvtsgoo56e59ms.apps.googleusercontent.com';
   const googleProvider = new GoogleAuthProvider();
   googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
-  googleProvider.setCustomParameters({prompt:'consent'});
   let currentUser = null;
   let legacyMigrationChecked = false;
   let driveTokenPromise = null;
-  let driveAccessToken = sessionStorage.getItem('genalsat-drive-token') || '';
-  let driveTokenExpiresAt = Number(sessionStorage.getItem('genalsat-drive-token-expiry') || 0);
+  let driveInteractiveTokenPromise = null;
+  let driveAccessToken = '';
+  let driveTokenExpiresAt = 0;
+  let driveIdentityScriptPromise = null;
   let driveFolderId = null;
   let authReadyResolve;
   const authReady = new Promise(resolve=>{ authReadyResolve = resolve; });
+  try{
+    sessionStorage.removeItem('genalsat-drive-token');
+    sessionStorage.removeItem('genalsat-drive-token-expiry');
+  }catch(error){
+    console.warn('No se pudieron limpiar los tokens antiguos de Google Drive del almacenamiento de sesión.', error);
+  }
+
+  function rememberDriveToken(token, expiresIn=3600){
+    driveAccessToken = token;
+    driveTokenExpiresAt = Date.now() + Math.max(0, Number(expiresIn) || 3600) * 1000;
+    return driveAccessToken;
+  }
+
+  function loadGoogleIdentityServices(){
+    if(window.google?.accounts?.oauth2) return Promise.resolve();
+    if(driveIdentityScriptPromise) return driveIdentityScriptPromise;
+    driveIdentityScriptPromise = new Promise((resolve,reject)=>{
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.onload = ()=>{
+        if(window.google?.accounts?.oauth2) resolve();
+        else reject(new Error('Google Identity Services no está disponible.'));
+      };
+      script.onerror = ()=>reject(new Error('No se pudo cargar Google Identity Services.'));
+      document.head.appendChild(script);
+    }).catch(error=>{
+      driveIdentityScriptPromise = null;
+      throw error;
+    });
+    return driveIdentityScriptPromise;
+  }
 
   function showLogin(){
     if(document.getElementById('firebase-login')) return;
@@ -54,10 +88,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
         const credentialResult = await signInWithPopup(auth, googleProvider);
         const googleCredential = credentialResult?.credential;
         if(googleCredential?.accessToken){
-          driveAccessToken = googleCredential.accessToken;
-          driveTokenExpiresAt = Date.now() + 3600000;
-          sessionStorage.setItem('genalsat-drive-token', driveAccessToken);
-          sessionStorage.setItem('genalsat-drive-token-expiry', String(driveTokenExpiresAt));
+          rememberDriveToken(googleCredential.accessToken);
         }
       }catch(signInError){
         console.error('No se pudo iniciar sesión con Google.', signInError);
@@ -75,8 +106,6 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     else {
       driveAccessToken = '';
       driveTokenExpiresAt = 0;
-      sessionStorage.removeItem('genalsat-drive-token');
-      sessionStorage.removeItem('genalsat-drive-token-expiry');
       showLogin();
     }
     if(user) authReadyResolve(user);
@@ -210,32 +239,84 @@ import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, setDoc } fro
     }
   }
 
+  async function requestSilentDriveToken(){
+    await loadGoogleIdentityServices();
+    return new Promise((resolve,reject)=>{
+      let settled = false;
+      const finish = (callback, value)=>{
+        if(settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        callback(value);
+      };
+      const timeout = setTimeout(()=>finish(reject,new Error('Google no respondió a la renovación silenciosa de Drive.')),15000);
+      try{
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id:DRIVE_OAUTH_CLIENT_ID,
+          scope:'https://www.googleapis.com/auth/drive.file',
+          callback:response=>{
+            if(response.error || !response.access_token){
+              finish(reject,new Error(response.error_description || response.error || 'Google no renovó el permiso de Drive en segundo plano.'));
+              return;
+            }
+            finish(resolve,rememberDriveToken(response.access_token,response.expires_in));
+          },
+          error_callback:error=>{
+            finish(reject,new Error(`No se pudo renovar el permiso de Drive (${error.type || 'error de Google'}).`));
+          }
+        });
+        tokenClient.requestAccessToken({prompt:''});
+      }catch(error){
+        finish(reject,error);
+      }
+    });
+  }
+
+  async function requestInteractiveDriveToken(){
+    const result = await reauthenticateWithPopup(currentUser, googleProvider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if(!credential?.accessToken) throw new Error('Google no devolvió un token para Google Drive.');
+    return rememberDriveToken(credential.accessToken);
+  }
+
+  function requestInteractiveDriveTokenOnce(){
+    if(!driveInteractiveTokenPromise){
+      driveInteractiveTokenPromise = requestInteractiveDriveToken().finally(()=>{
+        driveInteractiveTokenPromise = null;
+      });
+    }
+    return driveInteractiveTokenPromise;
+  }
+
   async function getDriveToken(interactive=false){
     if(driveAccessToken && Date.now() < driveTokenExpiresAt - 60000) return driveAccessToken;
-    if(driveTokenPromise) return driveTokenPromise;
+    if(driveTokenPromise){
+      if(!interactive) return driveTokenPromise;
+      return driveTokenPromise.catch(error=>{
+        if(!currentUser) throw error;
+        console.warn('No se pudo renovar Drive silenciosamente; se solicitará autorización interactiva.', error);
+        return requestInteractiveDriveTokenOnce();
+      });
+    }
     if(!currentUser) throw new Error('Se requiere una sesión de Google antes de autorizar Google Drive.');
-    const extractToken = result=>{
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      if(!credential?.accessToken) throw new Error('Google no devolvió un token para Google Drive.');
-      driveAccessToken = credential.accessToken;
-      driveTokenExpiresAt = Date.now() + 3600000;
-      sessionStorage.setItem('genalsat-drive-token', driveAccessToken);
-      sessionStorage.setItem('genalsat-drive-token-expiry', String(driveTokenExpiresAt));
-      return driveAccessToken;
-    };
-    if(!interactive) throw new Error('La autorización de Google Drive ha caducado. Selecciona un archivo para volver a autorizarla.');
-    driveTokenPromise = reauthenticateWithPopup(currentUser, googleProvider).then(extractToken).then(token=>{
-        driveTokenPromise = null;
-        return token;
-      }).catch(error=>{
+    driveTokenPromise = (async ()=>{
+      try{
+        return await requestSilentDriveToken();
+      }catch(error){
+        if(!interactive) throw error;
+        console.warn('No se pudo renovar Drive silenciosamente; se solicitará autorización interactiva.', error);
+        return requestInteractiveDriveTokenOnce();
+      }
+    })();
+    try{
+      return await driveTokenPromise;
+    }finally{
       driveTokenPromise = null;
-      throw error;
-    });
-    return driveTokenPromise;
+    }
   }
 
   function prepareDriveAccess(){
-    return getDriveToken(true);
+    return getDriveToken(false);
   }
 
   async function getDriveFolderId(){

@@ -1749,8 +1749,7 @@ async function renderPendingAttachments(event){
 
 function prepareDriveAccess(){
   GenalDrive.prepareAccess().catch(error=>{
-    console.error('No se pudo autorizar Google Drive.', error);
-    showToast(`No se pudo autorizar Google Drive: ${error.message || 'error de autenticación'}`, 'error');
+    console.warn('No se pudo renovar el acceso a Google Drive en segundo plano.', error);
   });
 }
 
@@ -1763,15 +1762,19 @@ function readFileAsDataUrl(file){
   });
 }
 
-async function resolveAttachmentUrl(attachment){
+async function resolveAttachmentUrl(attachment, interactive=false){
   if(attachment.dataUrl) return attachment.dataUrl;
   if(attachment._previewUrl) return attachment._previewUrl;
   if(!attachment.driveFileId) return attachment.driveUrl || '';
   try{
-    const blob = await GenalDrive.download(attachment.driveFileId);
+    const blob = await GenalDrive.download(attachment.driveFileId, interactive);
     attachment._previewUrl = URL.createObjectURL(blob);
     return attachment._previewUrl;
   }catch(error){
+    if(interactive){
+      console.error('No se pudo abrir el archivo de Google Drive.', error);
+      showToast(`No se pudo abrir el archivo: ${error.message || 'error de autorización de Google Drive'}`, 'error');
+    }
     return '';
   }
 }
@@ -1836,7 +1839,7 @@ async function renderAttachmentViewer(){
     : document.createElement('img');
   const mediaUrl = await resolveAttachmentUrl(attachment, true);
   if(!mediaUrl){
-    stage.textContent = 'Autoriza Google Drive para ver este archivo.';
+    stage.textContent = 'No se pudo cargar el archivo. Comprueba el acceso a Google Drive e inténtalo de nuevo.';
     return;
   }
   media.src = mediaUrl;
@@ -2315,7 +2318,7 @@ async function renderPartsList(){
       : document.createElement('img');
     const mediaUrl = await resolveAttachmentUrl(attachment, true);
     if(!mediaUrl){
-      stage.textContent = 'Autoriza Google Drive para ver este archivo.';
+      stage.textContent = 'No se pudo cargar el archivo. Comprueba el acceso a Google Drive e inténtalo de nuevo.';
       return;
     }
     media.src = mediaUrl;
