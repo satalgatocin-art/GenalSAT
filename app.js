@@ -347,7 +347,7 @@ async function showView(view){
             <input id="filter-part-date-to" type="date" title="Fecha hasta" aria-label="Fecha hasta">
           </span>
           <input id="filter-part-client" placeholder="Cliente">
-          <select id="filter-part-type" title="Filtrar por tipo"><option value="">Todos los tipos</option></select>
+          <select id="filter-part-type" title="Filtrar por tipo de equipo"><option value="">Todos los tipos de equipo</option></select>
           <input id="filter-part-brand" placeholder="Marca">
           <input id="filter-part-model" placeholder="Modelo">
           <input id="filter-part-sn" placeholder="Nº de serie">
@@ -388,7 +388,7 @@ async function showView(view){
         <input id="report-client-phone" placeholder="Teléfono" autocomplete="tel" style="width:180px">
       </div>
       <div class="form-row">
-        <select id="report-type" title="Tipo de parte" aria-label="Tipo de parte" style="flex:1"></select>
+        <select id="report-type" title="Tipo de equipo" aria-label="Tipo de equipo" style="flex:1"></select>
         <input id="report-device-brand" placeholder="Marca" style="flex:1">
         <input id="report-device-model" placeholder="Modelo" style="flex:1">
         <input id="report-device-sn" placeholder="Nº de serie (SN)" style="flex:1">
@@ -628,9 +628,9 @@ async function showView(view){
         <img id="logo-preview" src="${safeImageSource(settings.logo)}" alt="" style="height:48px;object-fit:contain">
         </div>
       </div></details>
-      <details class="settings-section"><summary>Tipos de parte</summary>
+      <details class="settings-section"><summary>Tipos de equipo</summary>
         <div class="settings-section-body"><div id="part-types-settings"></div>
-        <div class="form-row"><input id="new-part-type" placeholder="Nuevo tipo"><button id="add-part-type" class="btn">Añadir tipo</button></div></div>
+        <div class="form-row"><input id="new-part-type" placeholder="Nuevo tipo de equipo"><button id="add-part-type" class="btn">Añadir tipo de equipo</button></div></div>
       </details>
       <details class="settings-section"><summary>Estados de informes de trabajo</summary>
         <div class="settings-section-body"><div id="report-statuses-settings"></div>
@@ -763,8 +763,8 @@ async function populateReportPartOptions(){
       select.appendChild(option);
     });
   };
-  fillOptions(type, 'Tipo de parte', types);
-  fillOptions(filter, 'Todos los tipos', types);
+  fillOptions(type, 'Tipo de equipo', types);
+  fillOptions(filter, 'Todos los tipos de equipo', types);
   fillOptions(status, '', statuses);
   fillOptions(statusFilter, 'Todos los estados', statuses);
   return statuses;
@@ -2073,7 +2073,7 @@ function renderPartsTable(wrap, pageData, total, technicianMode=false, statuses=
   const appointmentHeader = '<th class="part-appointment-header">Hora cita</th>';
   table.innerHTML = `<thead><tr>
     <th><input type="checkbox" data-table-select-all aria-label="Seleccionar todos los partes"></th>
-    <th>Número</th><th>Cliente</th><th>Fecha</th>${appointmentHeader}<th>Tipo</th><th>Marca</th><th>Modelo</th><th>Nº serie</th><th>Estado</th><th>Acciones</th>
+    <th>Número</th><th>Cliente</th><th>Fecha</th>${appointmentHeader}<th>Equipo</th><th>Marca</th><th>Modelo</th><th>Nº serie</th><th>Estado</th><th>Acciones</th>
   </tr></thead><tbody></tbody>`;
   wrap.appendChild(table);
   const tbody = table.querySelector('tbody');
@@ -2086,7 +2086,7 @@ function renderPartsTable(wrap, pageData, total, technicianMode=false, statuses=
       <div class="part-mobile-details">
         <dl>
           <div><dt>Fecha</dt><dd>${new Date(p.createdAt).toLocaleDateString()}</dd></div>
-          <div><dt>Tipo</dt><dd>${escapeHtml(p.type || '—')}</dd></div>
+          <div><dt>Equipo</dt><dd>${escapeHtml(p.type || '—')}</dd></div>
           <div><dt>Marca</dt><dd>${escapeHtml(device.brand || '—')}</dd></div>
           <div><dt>Modelo</dt><dd>${escapeHtml(device.model || '—')}</dd></div>
           <div><dt>Nº serie</dt><dd>${escapeHtml(device.serialNumber || '—')}</dd></div>
@@ -2438,7 +2438,7 @@ async function renderPartsList(){
             <strong>${escapeHtml(p.number || 'Informe antiguo')}</strong>
             <span>${new Date(p.createdAt).toLocaleDateString()}</span>
             <span><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}</span>
-            <span><strong>Tipo:</strong> ${escapeHtml(p.type || '—')}</span>
+            <span><strong>Equipo:</strong> ${escapeHtml(p.type || '—')}</span>
             <span><strong>Modelo:</strong> ${escapeHtml(device.model || '—')}</span>
             <span><strong>Marca:</strong> ${escapeHtml(device.brand || '—')}</span>
             <span><strong>Nº serie:</strong> ${escapeHtml(device.serialNumber || '—')}</span>
@@ -2751,6 +2751,16 @@ const DOCUMENT_STYLE = `<style>
 </style><div class="genal-document">`;
 function documentStart(){ return DOCUMENT_STYLE; }
 
+function buildClientDetailsHTML(client){
+  const address = [
+    client?.address,
+    [client?.postalCode, client?.locality, client?.province].filter(Boolean).join(' ')
+  ].filter(Boolean).join(', ');
+  return `<p><strong>Nombre:</strong> ${escapeHtml(getClientDisplayName(client))}<br>
+    <strong>Dirección:</strong> ${escapeHtml(address || '—')}<br>
+    <strong>Teléfono:</strong> ${escapeHtml(client?.phone || client?.contact || '—')}</p>`;
+}
+
 function buildPartReportHTML(part, client, cfg, appointments=[], productsById=new Map()){
   const company = cfg.company || {};
   const logoSrc = safeImageSource(cfg.logo);
@@ -2769,13 +2779,9 @@ function buildPartReportHTML(part, client, cfg, appointments=[], productsById=ne
   html += `<h2 style="margin:8px 0">Informe de trabajo ${escapeHtml(part.number || '')}</h2>`;
   html += `<p><strong>Fecha:</strong> ${new Date(part.createdAt).toLocaleString()}</p>`;
   html += `<h3>Datos del cliente</h3>`;
-  html += `<p><strong>Nombre:</strong> ${escapeHtml(getClientDisplayName(client))}<br>`;
-  if(client?.address) html += `${escapeHtml(client.address)}<br>`;
-  const clientLocation = [client?.postalCode, client?.locality, client?.province].filter(Boolean).join(' ');
-  if(clientLocation) html += `${escapeHtml(clientLocation)}<br>`;
-  html += `<strong>Teléfono:</strong> ${escapeHtml(client?.phone || client?.contact || '—')}</p>`;
+  html += buildClientDetailsHTML(client);
   html += `<h3>Producto revisado</h3>`;
-  html += `<p><strong>Marca:</strong> ${escapeHtml(device.brand || '—')} &nbsp; <strong>Modelo:</strong> ${escapeHtml(device.model || '—')} &nbsp; <strong>SN:</strong> ${escapeHtml(device.serialNumber || '—')}</p>`;
+  html += `<p><strong>Equipo:</strong> ${escapeHtml(part.type || '—')} &nbsp; <strong>Marca:</strong> ${escapeHtml(device.brand || '—')} &nbsp; <strong>Modelo:</strong> ${escapeHtml(device.model || '—')} &nbsp; <strong>SN:</strong> ${escapeHtml(device.serialNumber || '—')}</p>`;
   html += `<h3>Problema detectado por el cliente</h3><p style="white-space:pre-wrap">${escapeHtml(part.customerProblem || part.desc || '—')}</p>`;
   html += `<h3>Trabajos realizados por el técnico</h3><p style="white-space:pre-wrap">${escapeHtml(part.technicianWork || '—')}</p>`;
   html += `<h3>Piezas utilizadas</h3><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Pieza</th><th style="border-bottom:1px solid #ccc">Cantidad</th></tr></thead><tbody>`;
@@ -3817,13 +3823,9 @@ async function exportInvoicePDF(invoiceId){
   if(company.email) html += `${escapeHtml(company.email)}<br>`;
   html += `</div></div>`;
   html += `<h3 style=\"margin:8px 0\">Factura ${escapeHtml(inv.number)}</h3>`;
-  html += `<p><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}<br>
-    <strong>Dirección:</strong> ${escapeHtml(client?.address || '—')}<br>
-    <strong>Localidad:</strong> ${escapeHtml(client?.locality || '—')}<br>
-    <strong>Provincia:</strong> ${escapeHtml(client?.province || '—')}<br>
-    <strong>Código postal:</strong> ${escapeHtml(client?.postalCode || '—')}<br>
-    <strong>DNI / NIF:</strong> ${escapeHtml(client?.dni || '—')}<br>
-    <strong>Teléfono:</strong> ${escapeHtml(client?.phone || client?.contact || '—')}${client?.email ? `<br><strong>Email:</strong> ${escapeHtml(client.email)}` : ''}</p>`;
+  html += buildClientDetailsHTML(client);
+  if(client?.dni) html += `<p><strong>DNI / NIF:</strong> ${escapeHtml(client.dni)}</p>`;
+  if(client?.email) html += `<p><strong>Email:</strong> ${escapeHtml(client.email)}</p>`;
   html += `<p><strong>Fecha:</strong> ${new Date(inv.createdAt).toLocaleString()}</p>`;
   html += `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Descripción</th><th style="border-bottom:1px solid #ccc">Cant.</th><th style="border-bottom:1px solid #ccc">P.Unit</th><th style="border-bottom:1px solid #ccc">Total</th></tr></thead><tbody>`;
   for(const l of inv.lines){ html += `<tr><td style="padding:6px 0">${escapeHtml(l.desc||'')}</td><td style="text-align:center">${Number(l.qty) || 0}</td><td style="text-align:right">${Number(l.price||0).toFixed(2)}</td><td style="text-align:right">${Number(l.qty*l.price||0).toFixed(2)}</td></tr>`; }
@@ -3861,15 +3863,7 @@ async function exportBudgetPDF(budgetId){
   if(company.email) html += `${escapeHtml(company.email)}<br>`;
   html += `</div></div>`;
   html += `<h3 style=\"margin:8px 0\">Presupuesto ${escapeHtml(b.number)}</h3>`;
-  const clientAddress = [
-    client?.address,
-    [client?.postalCode, client?.locality, client?.province].filter(Boolean).join(' ')
-  ].filter(Boolean);
-  html += `<p><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}<br>
-    <strong>Dirección:</strong> ${escapeHtml(client?.address || '—')}<br>
-    <strong>Localidad:</strong> ${escapeHtml(client?.locality || '—')}<br>
-    <strong>Provincia:</strong> ${escapeHtml(client?.province || '—')}<br>
-    <strong>Código postal:</strong> ${escapeHtml(client?.postalCode || '—')}</p>`;
+  html += buildClientDetailsHTML(client);
   html += `<p><strong>Fecha:</strong> ${new Date(b.createdAt).toLocaleString()}</p>`;
   if(sourcePart?.technicianWork) html += `<h3>Trabajos realizados</h3><p style="white-space:pre-wrap">${escapeHtml(sourcePart.technicianWork)}</p>`;
   html += `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Descripción</th><th style="border-bottom:1px solid #ccc">Cant.</th><th style="border-bottom:1px solid #ccc">P.Unit</th><th style="border-bottom:1px solid #ccc">Total</th></tr></thead><tbody>`;
@@ -3953,15 +3947,7 @@ async function previewBudget(budgetId){
   if(company.email) html += `${escapeHtml(company.email)}<br>`;
   html += `</div></div>`;
   html += `<h3 style=\"margin:8px 0\">Presupuesto ${escapeHtml(b.number)}</h3>`;
-  const clientAddress = [
-    client?.address,
-    [client?.postalCode, client?.locality, client?.province].filter(Boolean).join(' ')
-  ].filter(Boolean);
-  html += `<p><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}<br>
-    <strong>Dirección:</strong> ${escapeHtml(client?.address || '—')}<br>
-    <strong>Localidad:</strong> ${escapeHtml(client?.locality || '—')}<br>
-    <strong>Provincia:</strong> ${escapeHtml(client?.province || '—')}<br>
-    <strong>Código postal:</strong> ${escapeHtml(client?.postalCode || '—')}</p>`;
+  html += buildClientDetailsHTML(client);
   html += `<p><strong>Fecha:</strong> ${new Date(b.createdAt).toLocaleString()}</p>`;
   if(sourcePart?.technicianWork) html += `<h3>Trabajos realizados</h3><p style="white-space:pre-wrap">${escapeHtml(sourcePart.technicianWork)}</p>`;
   html += `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Descripción</th><th style="border-bottom:1px solid #ccc">Cant.</th><th style="border-bottom:1px solid #ccc">P.Unit</th><th style="border-bottom:1px solid #ccc">Total</th></tr></thead><tbody>`;
@@ -4006,13 +3992,9 @@ async function previewInvoice(invoiceId){
   if(company.email) html += `${escapeHtml(company.email)}<br>`;
   html += `</div></div>`;
   html += `<h3 style=\"margin:8px 0\">Factura ${escapeHtml(inv.number)}</h3>`;
-  html += `<p><strong>Cliente:</strong> ${escapeHtml(getClientDisplayName(client))}<br>
-    <strong>Dirección:</strong> ${escapeHtml(client?.address || '—')}<br>
-    <strong>Localidad:</strong> ${escapeHtml(client?.locality || '—')}<br>
-    <strong>Provincia:</strong> ${escapeHtml(client?.province || '—')}<br>
-    <strong>Código postal:</strong> ${escapeHtml(client?.postalCode || '—')}<br>
-    <strong>DNI / NIF:</strong> ${escapeHtml(client?.dni || '—')}<br>
-    <strong>Teléfono:</strong> ${escapeHtml(client?.phone || client?.contact || '—')}${client?.email ? `<br><strong>Email:</strong> ${escapeHtml(client.email)}` : ''}</p>`;
+  html += buildClientDetailsHTML(client);
+  if(client?.dni) html += `<p><strong>DNI / NIF:</strong> ${escapeHtml(client.dni)}</p>`;
+  if(client?.email) html += `<p><strong>Email:</strong> ${escapeHtml(client.email)}</p>`;
   html += `<p><strong>Fecha:</strong> ${new Date(inv.createdAt).toLocaleString()}</p>`;
   html += `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc">Descripción</th><th style="border-bottom:1px solid #ccc">Cant.</th><th style="border-bottom:1px solid #ccc">P.Unit</th><th style="border-bottom:1px solid #ccc">Total</th></tr></thead><tbody>`;
   for(const l of inv.lines){ html += `<tr><td style="padding:6px 0">${escapeHtml(l.desc||'')}</td><td style="text-align:center">${Number(l.qty) || 0}</td><td style="text-align:right">${Number(l.price||0).toFixed(2)}</td><td style="text-align:right">${Number(l.qty*l.price||0).toFixed(2)}</td></tr>`; }
