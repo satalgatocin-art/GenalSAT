@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   }
 });
 
-window._listSort = window._listSort || {parts:'asc', budgets:'asc', invoices:'asc', clients:'asc'};
+window._listSort = window._listSort || {parts:'desc', budgets:'asc', invoices:'asc', clients:'asc'};
 window._listPages = window._listPages || {};
 const LIST_PAGE_SIZE = 50;
 function debounce(callback, delay=150){
